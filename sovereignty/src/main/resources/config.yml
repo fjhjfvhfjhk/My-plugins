@@ -1,0 +1,132 @@
+base-max-claims: 15
+chunk-limit-upgrade-step: 10
+map-radius: 7
+claim-energy-cost: 2.0
+claim-money-cost: 0.0
+passive-income-interval-ticks: 72000
+reparations-percent: 20.0
+war-victory-threshold-percent: 40
+
+income:
+  base-per-chunk: 3.0
+  trade-pact-bonus-percent: 5.0
+
+energy:
+  starting-energy: 10.0
+  death-energy-loss: 1.0
+  max-levels: [10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0, 85.0, 90.0, 95.0, 100.0, 110.0]
+  max-upgrade-costs: [0.0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 12000, 15000, 18000, 21000, 25000, 30000, 35000, 40000, 50000, 60000]
+  regen-levels: [2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 30.0, 32.0, 34.0, 36.0, 38.0, 40.0]
+  regen-upgrade-costs: [0.0, 1500, 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 17000, 20000, 23000, 26000, 30000, 35000, 40000, 45000, 55000, 65000]
+  buy-energy-cost: 1000.0
+  boost-duration-hours: 1
+  boost-regen-bonus: 2.0
+  boost-cost: 5000.0
+  chunk-limit-upgrade-costs: [0.0, 5000, 10000, 15000, 20000, 25000, 35000, 45000, 60000, 80000, 100000]
+  farm-upgrade-costs: [0.0, 2000, 4000, 6000, 8000, 10000, 15000, 20000, 30000, 40000]
+
+chunk-upgrades:
+  normal:
+    cost: 0.0
+  farm:
+    cost: 1000.0
+    income: 150.0
+    income-step: 100.0
+  mining:
+    cost: 2000.0
+  military:
+    cost: 3000.0
+  trade:
+    cost: 1500.0
+    income: 50.0
+    farm-bonus-percent: 10.0
+    shop-bonus-percent: 10.0
+  defensive:
+    cost: 2500.0
+
+mining-boost:
+  base-level: 1
+  level-per-chunk: 1
+  max-level: 3
+  base-duration-seconds: 900
+  duration-per-chunk-seconds: 60
+  max-duration-seconds: 3600
+  cooldown-minutes: 60
+
+events:
+  enabled: true
+  interval-minutes: 60
+  duration-minutes: 45
+  chance-negative: 50
+  chance-positive: 30
+  negative: [drought, flood, plague]
+  positive: [harvest_season, trade_boom, mining_boom, energy_surge, peace_time]
+  mining-boom-haste-seconds: 3600
+  mining-boom-haste-level: 2
+  energy-surge-bonus: 3.0
+  announcements:
+    drought: "§6[Событие] §cНачалась Засуха! Доход ферм снижен на 50%."
+    flood: "§6[Событие] §cНачалось Наводнение! Доход ферм и торговли снижен."
+    plague: "§6[Событие] §cНачалась Чума! Регенерация энергии снижена."
+    harvest_season: "§6[Событие] §aУрожайный сезон! Доход ферм увеличен на 75%."
+    trade_boom: "§6[Событие] §aТорговый бум! Доход торговых чанков увеличен."
+    mining_boom: "§6[Событие] §aГорный бум! Все получают Спешку!"
+    energy_surge: "§6[Событие] §aЭнергетический всплеск! Всем +3 энергии."
+    peace_time: "§6[Событие] §aМирное время! PvP отключён, доход чанков +20%."
+  end-announcements:
+    drought: "§6[Событие] §eЗасуха закончилась."
+    flood: "§6[Событие] §eНаводнение закончилось."
+    plague: "§6[Событие] §eЧума отступила."
+    harvest_season: "§6[Событие] §eУрожайный сезон завершён."
+    trade_boom: "§6[Событие] §eТорговый бум завершён."
+    mining_boom: "§6[Событие] §eГорный бум завершён."
+    energy_surge: "§6[Событие] §eЭнергетический всплеск завершён."
+    peace_time: "§6[Событие] §eМирное время завершено."
+  descriptions:
+    drought: "Засуха|Доход ферм снижен на 50%"
+    flood: "Наводнение|Доход ферм и торговли снижен"
+    plague: "Чума|Регенерация энергии снижена"
+    harvest_season: "Урожайный сезон|Доход ферм увеличен на 75%"
+    trade_boom: "Торговый бум|Доход торговых чанков увеличен"
+    mining_boom: "Горный бум|Все получают Спешку"
+    energy_surge: "Энергетический всплеск|Всем +3 энергии"
+    peace_time: "Мирное время|PvP отключён, доход чанков +20%"
+
+court:
+  fine-amount: 5000.0
+  voting-duration-seconds: 300
+  required-votes-percent: 60
+  min-votes: 2
+  diplomacy-ban-minutes: 120
+  sanction-types: [fine, embargo, diplomacy]
+
+pvp-neutral: true
+pvp-ally: false
+pvp-enemy: true
+ally-build: true
+enemy-claim: true
+
+messages:
+  created: "§aСтрана §e%name%§a создана!"
+  already-have: "§cУ вас уже есть страна."
+  no-country: "§cУ вас нет страны. Создайте её: /country create <название>"
+  claimed: "§aЧанк захвачен! Осталось энергии: §f%energy%§a."
+  unclaimed: "§aЧанк освобождён."
+  not-yours: "§cЭтот чанк не принадлежит вашей стране."
+  limit-reached: "§cДостигнут лимит чанков."
+  not-enough-energy: "§cНедостаточно энергии."
+  not-enough-money: "§cНедостаточно денег. Нужно: §f%need%§c."
+  energy-bought: "§aКуплено энергии."
+  boost-bought: "§aБуст регенерации активирован на %hours% час(а)!"
+  upgrade-max: "§aМаксимум энергии повышен!"
+  upgrade-regen: "§aРегенерация улучшена!"
+  upgrade-chunk-limit: "§aЛимит чанков увеличен!"
+  upgrade-farm: "§aДоход ферм улучшен!"
+  bank-deposited: "§aВнесено в банк страны: %amount%."
+  bank-withdrawn: "§aСнято из банка страны: %amount%."
+  bank-balance: "§7Баланс банка страны: §f%balance%."
+  renamed: "§aСтрана переименована в %name%!"
+  boost-active: "§aБуст регенерации активен: +%bonus%/час."
+  chunk-upgraded: "§aЧанк улучшен: %type%!"
+  pact-added: "§aПакт заключён: %type%!"
+  surrendered: "§cВы капитулировали. Репарации выплачены."

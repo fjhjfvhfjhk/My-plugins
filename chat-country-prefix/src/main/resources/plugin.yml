@@ -1,0 +1,8 @@
+name: ChatCountryPrefix
+version: 1.0.0
+main: com.example.chatcountryprefix.ChatCountryPrefixPlugin
+api-version: '1.21'
+description: Добавляет название страны в чат перед ником игрока
+
+depend: [PlaceholderAPI]
+softdepend: [Sovereignty]

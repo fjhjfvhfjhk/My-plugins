@@ -1,0 +1,28 @@
+name: TaxCollectorV3
+version: 3.0.0
+main: com.example.taxv3.TaxPlugin
+api-version: '1.21'
+description: Налоговая система с интеграцией Sovereignty
+
+depend: [Vault]
+softdepend: [Sovereignty]
+
+commands:
+  tax:
+    description: Налоговая система сервера
+    usage: |
+      §c/tax §7- открыть налоговое меню
+      §c/tax pay §7- оплатить долг
+      §c/tax debts §7- список должников
+      §c/tax admin §7- управление налогами
+
+permissions:
+  tax.use:
+    description: Доступ к /tax
+    default: true
+  tax.debts:
+    description: Просмотр всех долгов
+    default: op
+  tax.admin:
+    description: Админ-команды налогов
+    default: op

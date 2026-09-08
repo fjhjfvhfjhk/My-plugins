@@ -1,0 +1,28 @@
+name: MarketGUI
+version: 1.0.0
+main: com.example.marketgui.MarketPlugin
+api-version: '1.21'
+description: Магазин с категориями, продавцами и смешанной ценой (предметы + валюта)
+
+softdepend: [Vault]
+
+commands:
+  shop:
+    description: Открыть магазин
+    usage: |
+      §c/shop §7- открыть магазин
+      §c/shop add <материал> <кол-во> [money <сумма>] [категория] §7- продать за предметы и/или валюту
+      §c/shop add money <сумма> [категория] §7- продать только за валюту
+      §c/shop sell §7- меню продавца (свои товары)
+      §c/shop reload §7- перезагрузить конфиг (админ)
+
+permissions:
+  marketgui.use:
+    description: Доступ к магазину
+    default: true
+  marketgui.sell:
+    description: Право продавать предметы
+    default: true
+  marketgui.admin:
+    description: Админ-права магазина
+    default: op

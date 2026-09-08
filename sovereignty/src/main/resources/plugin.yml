@@ -1,0 +1,37 @@
+name: Sovereignty
+version: 1.3.0
+main: com.example.sovereignty.SovereigntyPlugin
+api-version: '1.21'
+description: "Система стран: территории, энергия, банк, прокачка, бусты"
+
+softdepend: [Vault, PlaceholderAPI]
+
+commands:
+  country:
+    description: Управление своей страной
+    aliases: [c, sov, state]
+    usage: |
+      §c/country §7- открыть меню
+      §c/country create <название> §7- создать страну
+      §c/country claim §7- захватить чанк
+      §c/country unclaim §7- освободить чанк
+      §c/country ally <игрок> §7- союз
+      §c/country enemy <игрок> §7- война
+      §c/country neutral <игрок> §7- нейтралитет
+      §c/country map §7- карта территорий
+      §c/country info [игрок] §7- информация
+      §c/country list §7- список стран
+      §c/country buyenergy <кол-во> §7- купить энергию
+      §c/country boost §7- купить буст регенерации
+      §c/country upgrade §7- меню улучшений
+      §c/country bank deposit <сумма> §7- внести в банк
+      §c/country bank withdraw <сумма> §7- снять из банка
+      §c/country rename <новое> §7- переименовать
+
+permissions:
+  sovereignty.use:
+    description: Доступ к базовым командам
+    default: true
+  sovereignty.admin:
+    description: Админ-команды
+    default: op

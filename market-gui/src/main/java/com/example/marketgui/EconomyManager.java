@@ -1,0 +1,53 @@
+package com.example.marketgui;
+
+import net.milkbowl.vault.economy.Economy;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.RegisteredServiceProvider;
+
+/**
+ * Обёртка над Vault Economy для работы с валютой Essentials.
+ */
+public class EconomyManager {
+
+    private final MarketPlugin plugin;
+    private Economy economy;
+
+    public EconomyManager(MarketPlugin plugin) {
+        this.plugin = plugin;
+        if (plugin.getServer().getPluginManager().getPlugin("Vault") == null) {
+            plugin.getLogger().warning("Vault не найден — продажа за валюту отключена.");
+            return;
+        }
+        RegisteredServiceProvider<Economy> rsp = plugin.getServer().getServicesManager().getRegistration(Economy.class);
+        if (rsp == null) {
+            plugin.getLogger().warning("Экономика не найдена — продажа за валюту отключена.");
+            return;
+        }
+        this.economy = rsp.getProvider();
+    }
+
+    public boolean isEnabled() {
+        return economy != null;
+    }
+
+    public double getBalance(Player player) {
+        return economy == null ? 0.0 : economy.getBalance(player);
+    }
+
+    public boolean has(Player player, double amount) {
+        return economy != null && economy.has(player, amount);
+    }
+
+    public boolean withdraw(Player player, double amount) {
+        if (economy == null || !economy.has(player, amount)) return false;
+        return economy.withdrawPlayer(player, amount).transactionSuccess();
+    }
+
+    public boolean deposit(Player player, double amount) {
+        return economy != null && economy.depositPlayer(player, amount).transactionSuccess();
+    }
+
+    public String format(double amount) {
+        return economy == null ? String.valueOf(amount) : economy.format(amount);
+    }
+}

@@ -1,0 +1,22 @@
+# ===== Налоговая система v3 (налоги из казны Sovereignty) =====
+
+tax-interval-days: 5
+base-tax: 100.0
+per-chunk-tax: 100.0
+per-5-chunks-bonus: 200.0
+missed-before-unclaim: 3
+
+# Процент налога, возвращаемый в казну как "субсидия за активность"
+tax-subsidy-percent: 10.0
+
+messages:
+  tax-collected: "§aНалог списан из казны: §f%amount%§a."
+  debt-added: "§cВ казне недостаточно средств! Списано: §f%paid%§c. Долг страны: §f%debt%§c."
+  chunk-removed: "§4⚠ Просрочено 3 налога! Один чанк изъят из вашей страны."
+  debt-paid: "§aДолг страны погашен!"
+  no-debt: "§aДолгов нет."
+
+gui:
+  title: "§6Налоги"
+  pay-button: "§aОплатить долг"
+  info-button: "§eИнформация"
