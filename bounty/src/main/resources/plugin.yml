@@ -1,0 +1,21 @@
+name: Bounty
+version: 1.0.0
+main: com.example.bounty.BountyPlugin
+api-version: '1.21'
+description: Система наёмников — награды за головы игроков
+
+depend: [Vault]
+
+commands:
+  bounty:
+    description: Система наёмников
+    usage: |
+      §c/bounty <ник> <сумма> §7- назначить награду
+      §c/bounty list §7- список целей
+      §c/bounty menu §7- открыть меню
+      §c/bounty remove <ник> §7- снять свою награду (возврат)
+
+permissions:
+  bounty.use:
+    description: Доступ к наёмникам
+    default: true
