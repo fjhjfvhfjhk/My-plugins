@@ -60,10 +60,18 @@ public class ShopGUI implements Listener {
 
     public void openCategory(Player player, String categoryName) {
         List<ShopManager.Listing> listings = shopManager.getListingsByCategory(categoryName);
+        // Фильтруем: если товар предназначен конкретному игроку, показываем только ему
+        List<ShopManager.Listing> filtered = new ArrayList<>();
+        for (ShopManager.Listing listing : listings) {
+            if (listing.getTargetPlayer() == null || listing.getTargetPlayer().equals(player.getUniqueId())) {
+                filtered.add(listing);
+            }
+        }
+
         Inventory inv = Bukkit.createInventory(null, 54, CATEGORY_PREFIX + categoryName);
 
-        for (int i = 0; i < Math.min(listings.size(), 45); i++) {
-            ShopManager.Listing listing = listings.get(i);
+        for (int i = 0; i < Math.min(filtered.size(), 45); i++) {
+            ShopManager.Listing listing = filtered.get(i);
             ItemStack item = listing.getItemStack();
             ItemMeta meta = item.getItemMeta();
             if (meta != null && !meta.hasDisplayName()) {
@@ -72,6 +80,10 @@ public class ShopGUI implements Listener {
             List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
             lore.add("§7Продавец: §f" + listing.getSellerName());
             lore.add("§7Цена: §f" + formatPrice(listing));
+            if (listing.getTargetPlayer() != null) {
+                String targetName = Bukkit.getOfflinePlayer(listing.getTargetPlayer()).getName();
+                lore.add("§6Лично для: §f" + (targetName != null ? targetName : listing.getTargetPlayer().toString()));
+            }
             lore.add("§eНажмите, чтобы купить");
             meta.setLore(lore);
             item.setItemMeta(meta);
@@ -101,6 +113,10 @@ public class ShopGUI implements Listener {
             List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
             lore.add("§7Категория: §f" + listing.getCategoryName());
             lore.add("§7Цена: §f" + formatPrice(listing));
+            if (listing.getTargetPlayer() != null) {
+                String targetName = Bukkit.getOfflinePlayer(listing.getTargetPlayer()).getName();
+                lore.add("§6Лично для: §f" + (targetName != null ? targetName : listing.getTargetPlayer().toString()));
+            }
             lore.add("§cНажмите, чтобы снять с продажи");
             meta.setLore(lore);
             item.setItemMeta(meta);
@@ -116,7 +132,9 @@ public class ShopGUI implements Listener {
                 "§7или за валюту:",
                 "§f/shop add money <сумма>",
                 "§7или смешанно:",
-                "§f/shop add <материал> <кол-во> money <сумма>"
+                "§f/shop add <материал> <кол-во> money <сумма>",
+                "§7Для личной продажи:",
+                "§f/shop add <...> for <игрок>"
         ));
         info.setItemMeta(infoMeta);
         inv.setItem(49, info);
@@ -176,8 +194,15 @@ public class ShopGUI implements Listener {
             if (slot >= 0 && slot < 45) {
                 String categoryName = title.substring(CATEGORY_PREFIX.length());
                 List<ShopManager.Listing> listings = shopManager.getListingsByCategory(categoryName);
-                if (slot < listings.size()) {
-                    buyItem(player, listings.get(slot));
+                // Фильтруем так же, как при открытии
+                List<ShopManager.Listing> filtered = new ArrayList<>();
+                for (ShopManager.Listing listing : listings) {
+                    if (listing.getTargetPlayer() == null || listing.getTargetPlayer().equals(player.getUniqueId())) {
+                        filtered.add(listing);
+                    }
+                }
+                if (slot < filtered.size()) {
+                    buyItem(player, filtered.get(slot));
                 }
             }
             return;
@@ -202,6 +227,12 @@ public class ShopGUI implements Listener {
     private void buyItem(Player buyer, ShopManager.Listing listing) {
         if (buyer.getUniqueId().equals(listing.getSellerUuid())) {
             buyer.sendMessage("§cВы не можете купить свой собственный товар.");
+            return;
+        }
+
+        // Проверка, что товар предназначен для этого игрока
+        if (listing.getTargetPlayer() != null && !listing.getTargetPlayer().equals(buyer.getUniqueId())) {
+            buyer.sendMessage("§cЭтот товар предназначен для другого игрока.");
             return;
         }
 
@@ -263,11 +294,9 @@ public class ShopGUI implements Listener {
                 seller.sendMessage("§aВаш товар куплен! Вы получили " + economyManager.format(moneyPrice) + ".");
             } else {
                 // Для офлайн используем Vault deposit по OfflinePlayer
-                // Vault depositPlayer принимает Player, но Essentials умеет работать с офлайн балансом через depositPlayer(OfflinePlayer)
                 try {
                     economyManager.deposit(plugin.getServer().getOfflinePlayer(listing.getSellerUuid()), moneyPrice);
                 } catch (Exception e) {
-                    // Если не удалось — сохраняем отложенно
                     plugin.getLogger().warning("Не удалось зачислить деньги офлайн игроку " + listing.getSellerName());
                 }
                 buyer.sendMessage("§eПродавец оффлайн. Деньги зачислены на его баланс.");

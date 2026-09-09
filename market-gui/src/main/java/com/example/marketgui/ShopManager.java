@@ -12,9 +12,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Управляет категориями, объявлениями и переводами.
- */
 public class ShopManager {
 
     private final MarketPlugin plugin;
@@ -26,42 +23,22 @@ public class ShopManager {
     private final Map<String, String> itemNames = new HashMap<>();
     private final Map<UUID, Map<Material, Integer>> pendingPayments = new HashMap<>();
 
-    // Встроенный словарь русских названий материалов (fallback, если нет в конфиге)
     private static final Map<String, String> BUILT_IN_MATERIAL_NAMES = new HashMap<>();
     private static final Map<String, String> BUILT_IN_ITEM_NAMES = new HashMap<>();
 
     static {
-        // Материалы (валюта, ресурсы)
+        // Встроенные названия (краткий набор)
         BUILT_IN_MATERIAL_NAMES.put("DIAMOND", "Алмаз");
         BUILT_IN_MATERIAL_NAMES.put("EMERALD", "Изумруд");
         BUILT_IN_MATERIAL_NAMES.put("GOLD_INGOT", "Золотой слиток");
-        BUILT_IN_MATERIAL_NAMES.put("GOLD_NUGGET", "Золотой самородок");
         BUILT_IN_MATERIAL_NAMES.put("IRON_INGOT", "Железный слиток");
-        BUILT_IN_MATERIAL_NAMES.put("IRON_NUGGET", "Железный самородок");
         BUILT_IN_MATERIAL_NAMES.put("NETHERITE_INGOT", "Незеритовый слиток");
-        BUILT_IN_MATERIAL_NAMES.put("NETHERITE_SCRAP", "Незеритовый лом");
-        BUILT_IN_MATERIAL_NAMES.put("COPPER_INGOT", "Медный слиток");
-        BUILT_IN_MATERIAL_NAMES.put("LAPIS_LAZULI", "Лазурит");
-        BUILT_IN_MATERIAL_NAMES.put("REDSTONE", "Редстоун");
-        BUILT_IN_MATERIAL_NAMES.put("COAL", "Уголь");
-        BUILT_IN_MATERIAL_NAMES.put("CHARCOAL", "Древесный уголь");
-        BUILT_IN_MATERIAL_NAMES.put("RAW_GOLD", "Необработанное золото");
-        BUILT_IN_MATERIAL_NAMES.put("RAW_IRON", "Необработанное железо");
-        BUILT_IN_MATERIAL_NAMES.put("RAW_COPPER", "Необработанная медь");
-        BUILT_IN_MATERIAL_NAMES.put("AMETHYST_SHARD", "Аметистовый осколок");
-        BUILT_IN_MATERIAL_NAMES.put("QUARTZ", "Кварц");
-        BUILT_IN_MATERIAL_NAMES.put("PRISMARINE_SHARD", "Осколок призмарина");
-        BUILT_IN_MATERIAL_NAMES.put("PRISMARINE_CRYSTALS", "Кристалл призмарина");
-        BUILT_IN_MATERIAL_NAMES.put("ECHO_SHARD", "Осколок эха");
-        BUILT_IN_MATERIAL_NAMES.put("ANCIENT_DEBRIS", "Древние обломки");
-        BUILT_IN_MATERIAL_NAMES.put("NETHER_STAR", "Звезда Нижнего мира");
         BUILT_IN_MATERIAL_NAMES.put("STICK", "Палка");
         BUILT_IN_MATERIAL_NAMES.put("STRING", "Нить");
         BUILT_IN_MATERIAL_NAMES.put("LEATHER", "Кожа");
         BUILT_IN_MATERIAL_NAMES.put("BONE", "Кость");
-        BUILT_IN_MATERIAL_NAMES.put("BLAZE_ROD", "Огненный стержень");
         BUILT_IN_MATERIAL_NAMES.put("ENDER_PEARL", "Жемчуг Края");
-        BUILT_IN_MATERIAL_NAMES.put("GHAST_TEAR", "Слеза гаста");
+        BUILT_IN_MATERIAL_NAMES.put("BLAZE_ROD", "Огненный стержень");
         BUILT_IN_MATERIAL_NAMES.put("SLIME_BALL", "Сгусток слизи");
         BUILT_IN_MATERIAL_NAMES.put("GUNPOWDER", "Порох");
         BUILT_IN_MATERIAL_NAMES.put("ROTTEN_FLESH", "Гнилая плоть");
@@ -74,80 +51,36 @@ public class ShopManager {
         BUILT_IN_MATERIAL_NAMES.put("BOOK", "Книга");
         BUILT_IN_MATERIAL_NAMES.put("EXPERIENCE_BOTTLE", "Пузырёк опыта");
         BUILT_IN_MATERIAL_NAMES.put("HONEYCOMB", "Медовые соты");
-        BUILT_IN_MATERIAL_NAMES.put("SWEET_BERRIES", "Сладкие ягоды");
-        BUILT_IN_MATERIAL_NAMES.put("GLOW_BERRIES", "Светящиеся ягоды");
-        BUILT_IN_MATERIAL_NAMES.put("APPLE", "Яблоко");
         BUILT_IN_MATERIAL_NAMES.put("GOLDEN_APPLE", "Золотое яблоко");
         BUILT_IN_MATERIAL_NAMES.put("ENCHANTED_GOLDEN_APPLE", "Зачарованное золотое яблоко");
         BUILT_IN_MATERIAL_NAMES.put("TOTEM_OF_UNDYING", "Тотем бессмертия");
         BUILT_IN_MATERIAL_NAMES.put("ELYTRA", "Элитры");
         BUILT_IN_MATERIAL_NAMES.put("DRAGON_EGG", "Яйцо дракона");
-        BUILT_IN_MATERIAL_NAMES.put("DIAMOND_BLOCK", "Алмазный блок");
-        BUILT_IN_MATERIAL_NAMES.put("EMERALD_BLOCK", "Изумрудный блок");
-        BUILT_IN_MATERIAL_NAMES.put("GOLD_BLOCK", "Золотой блок");
-        BUILT_IN_MATERIAL_NAMES.put("IRON_BLOCK", "Железный блок");
-        BUILT_IN_MATERIAL_NAMES.put("NETHERITE_BLOCK", "Незеритовый блок");
-        BUILT_IN_MATERIAL_NAMES.put("COPPER_BLOCK", "Медный блок");
-        BUILT_IN_MATERIAL_NAMES.put("LAPIS_BLOCK", "Лазуритовый блок");
-        BUILT_IN_MATERIAL_NAMES.put("REDSTONE_BLOCK", "Блок редстоуна");
-        BUILT_IN_MATERIAL_NAMES.put("COAL_BLOCK", "Угольный блок");
 
-        // Названия предметов
         BUILT_IN_ITEM_NAMES.put("DIAMOND_SWORD", "Алмазный меч");
         BUILT_IN_ITEM_NAMES.put("IRON_SWORD", "Железный меч");
-        BUILT_IN_ITEM_NAMES.put("STONE_SWORD", "Каменный меч");
-        BUILT_IN_ITEM_NAMES.put("WOODEN_SWORD", "Деревянный меч");
-        BUILT_IN_ITEM_NAMES.put("GOLDEN_SWORD", "Золотой меч");
         BUILT_IN_ITEM_NAMES.put("NETHERITE_SWORD", "Незеритовый меч");
         BUILT_IN_ITEM_NAMES.put("BOW", "Лук");
         BUILT_IN_ITEM_NAMES.put("CROSSBOW", "Арбалет");
         BUILT_IN_ITEM_NAMES.put("TRIDENT", "Трезубец");
-        BUILT_IN_ITEM_NAMES.put("MACE", "Булава");
         BUILT_IN_ITEM_NAMES.put("DIAMOND_HELMET", "Алмазный шлем");
         BUILT_IN_ITEM_NAMES.put("DIAMOND_CHESTPLATE", "Алмазный нагрудник");
         BUILT_IN_ITEM_NAMES.put("DIAMOND_LEGGINGS", "Алмазные поножи");
         BUILT_IN_ITEM_NAMES.put("DIAMOND_BOOTS", "Алмазные ботинки");
-        BUILT_IN_ITEM_NAMES.put("IRON_HELMET", "Железный шлем");
-        BUILT_IN_ITEM_NAMES.put("IRON_CHESTPLATE", "Железный нагрудник");
-        BUILT_IN_ITEM_NAMES.put("IRON_LEGGINGS", "Железные поножи");
-        BUILT_IN_ITEM_NAMES.put("IRON_BOOTS", "Железные ботинки");
         BUILT_IN_ITEM_NAMES.put("NETHERITE_HELMET", "Незеритовый шлем");
         BUILT_IN_ITEM_NAMES.put("NETHERITE_CHESTPLATE", "Незеритовый нагрудник");
         BUILT_IN_ITEM_NAMES.put("NETHERITE_LEGGINGS", "Незеритовые поножи");
         BUILT_IN_ITEM_NAMES.put("NETHERITE_BOOTS", "Незеритовые ботинки");
-        BUILT_IN_ITEM_NAMES.put("GOLDEN_HELMET", "Золотой шлем");
-        BUILT_IN_ITEM_NAMES.put("GOLDEN_CHESTPLATE", "Золотой нагрудник");
-        BUILT_IN_ITEM_NAMES.put("GOLDEN_LEGGINGS", "Золотые поножи");
-        BUILT_IN_ITEM_NAMES.put("GOLDEN_BOOTS", "Золотые ботинки");
         BUILT_IN_ITEM_NAMES.put("DIAMOND_PICKAXE", "Алмазная кирка");
         BUILT_IN_ITEM_NAMES.put("IRON_PICKAXE", "Железная кирка");
-        BUILT_IN_ITEM_NAMES.put("STONE_PICKAXE", "Каменная кирка");
-        BUILT_IN_ITEM_NAMES.put("WOODEN_PICKAXE", "Деревянная кирка");
-        BUILT_IN_ITEM_NAMES.put("GOLDEN_PICKAXE", "Золотая кирка");
         BUILT_IN_ITEM_NAMES.put("NETHERITE_PICKAXE", "Незеритовая кирка");
         BUILT_IN_ITEM_NAMES.put("DIAMOND_AXE", "Алмазный топор");
         BUILT_IN_ITEM_NAMES.put("IRON_AXE", "Железный топор");
-        BUILT_IN_ITEM_NAMES.put("STONE_AXE", "Каменный топор");
-        BUILT_IN_ITEM_NAMES.put("WOODEN_AXE", "Деревянный топор");
-        BUILT_IN_ITEM_NAMES.put("GOLDEN_AXE", "Золотой топор");
         BUILT_IN_ITEM_NAMES.put("NETHERITE_AXE", "Незеритовый топор");
-        BUILT_IN_ITEM_NAMES.put("DIAMOND_SHOVEL", "Алмазная лопата");
-        BUILT_IN_ITEM_NAMES.put("IRON_SHOVEL", "Железная лопата");
-        BUILT_IN_ITEM_NAMES.put("STONE_SHOVEL", "Каменная лопата");
-        BUILT_IN_ITEM_NAMES.put("WOODEN_SHOVEL", "Деревянная лопата");
-        BUILT_IN_ITEM_NAMES.put("GOLDEN_SHOVEL", "Золотая лопата");
-        BUILT_IN_ITEM_NAMES.put("NETHERITE_SHOVEL", "Незеритовая лопата");
-        BUILT_IN_ITEM_NAMES.put("SHEARS", "Ножницы");
-        BUILT_IN_ITEM_NAMES.put("FLINT_AND_STEEL", "Огниво");
-        BUILT_IN_ITEM_NAMES.put("FISHING_ROD", "Удочка");
-        BUILT_IN_ITEM_NAMES.put("COMPASS", "Компас");
-        BUILT_IN_ITEM_NAMES.put("CLOCK", "Часы");
         BUILT_IN_ITEM_NAMES.put("BREAD", "Хлеб");
         BUILT_IN_ITEM_NAMES.put("COOKED_BEEF", "Жареная говядина");
         BUILT_IN_ITEM_NAMES.put("COOKED_PORKCHOP", "Жареная свинина");
         BUILT_IN_ITEM_NAMES.put("COOKED_CHICKEN", "Жареная курица");
-        BUILT_IN_ITEM_NAMES.put("COOKED_MUTTON", "Жареная баранина");
-        BUILT_IN_ITEM_NAMES.put("COOKED_RABBIT", "Жареный кролик");
         BUILT_IN_ITEM_NAMES.put("COOKED_COD", "Жареная треска");
         BUILT_IN_ITEM_NAMES.put("COOKED_SALMON", "Жареный лосось");
         BUILT_IN_ITEM_NAMES.put("CARROT", "Морковь");
@@ -158,13 +91,6 @@ public class ShopManager {
         BUILT_IN_ITEM_NAMES.put("SWEET_BERRIES", "Сладкие ягоды");
         BUILT_IN_ITEM_NAMES.put("GLOW_BERRIES", "Светящиеся ягоды");
         BUILT_IN_ITEM_NAMES.put("HONEY_BOTTLE", "Бутылочка мёда");
-        BUILT_IN_ITEM_NAMES.put("CAKE", "Торт");
-        BUILT_IN_ITEM_NAMES.put("COOKIE", "Печенье");
-        BUILT_IN_ITEM_NAMES.put("PUMPKIN_PIE", "Тыквенный пирог");
-        BUILT_IN_ITEM_NAMES.put("BEETROOT", "Свекла");
-        BUILT_IN_ITEM_NAMES.put("BEETROOT_SOUP", "Свекольный суп");
-        BUILT_IN_ITEM_NAMES.put("MUSHROOM_STEW", "Грибной суп");
-        BUILT_IN_ITEM_NAMES.put("RABBIT_STEW", "Суп из кролика");
         BUILT_IN_ITEM_NAMES.put("STONE", "Камень");
         BUILT_IN_ITEM_NAMES.put("COBBLESTONE", "Булыжник");
         BUILT_IN_ITEM_NAMES.put("DIRT", "Земля");
@@ -174,20 +100,12 @@ public class ShopManager {
         BUILT_IN_ITEM_NAMES.put("OAK_LOG", "Дубовое бревно");
         BUILT_IN_ITEM_NAMES.put("SPRUCE_LOG", "Еловое бревно");
         BUILT_IN_ITEM_NAMES.put("BIRCH_LOG", "Берёзовое бревно");
-        BUILT_IN_ITEM_NAMES.put("JUNGLE_LOG", "Бревно тропического дерева");
-        BUILT_IN_ITEM_NAMES.put("ACACIA_LOG", "Акациевое бревно");
-        BUILT_IN_ITEM_NAMES.put("DARK_OAK_LOG", "Бревно тёмного дуба");
         BUILT_IN_ITEM_NAMES.put("OAK_PLANKS", "Дубовые доски");
         BUILT_IN_ITEM_NAMES.put("SPRUCE_PLANKS", "Еловые доски");
         BUILT_IN_ITEM_NAMES.put("BIRCH_PLANKS", "Берёзовые доски");
-        BUILT_IN_ITEM_NAMES.put("JUNGLE_PLANKS", "Доски тропического дерева");
-        BUILT_IN_ITEM_NAMES.put("ACACIA_PLANKS", "Акациевые доски");
-        BUILT_IN_ITEM_NAMES.put("DARK_OAK_PLANKS", "Доски тёмного дуба");
         BUILT_IN_ITEM_NAMES.put("GLASS", "Стекло");
         BUILT_IN_ITEM_NAMES.put("BRICKS", "Кирпичи");
         BUILT_IN_ITEM_NAMES.put("STONE_BRICKS", "Каменные кирпичи");
-        BUILT_IN_ITEM_NAMES.put("DEEPSLATE", "Глубинный сланец");
-        BUILT_IN_ITEM_NAMES.put("COBBLED_DEEPSLATE", "Булыжник из глубинного сланца");
         BUILT_IN_ITEM_NAMES.put("OBSIDIAN", "Обсидиан");
         BUILT_IN_ITEM_NAMES.put("TNT", "Динамит");
         BUILT_IN_ITEM_NAMES.put("ANVIL", "Наковальня");
@@ -275,15 +193,18 @@ public class ShopManager {
             for (String key : section.getKeys(false)) {
                 try {
                     UUID id = UUID.fromString(key);
-                    String sellerUuidStr = section.getString(key + ".seller-uuid", "");
+                    String sellerUuidStr = section.getString(key + ".seller-uuid");
+                    if (sellerUuidStr == null) continue;
                     UUID sellerUuid = UUID.fromString(sellerUuidStr);
                     String sellerName = section.getString(key + ".seller-name", "Неизвестный");
                     String categoryName = section.getString(key + ".category", "Редкости");
-                    String priceMaterialName = section.getString(key + ".price-material", null);
+                    String priceMaterialName = section.getString(key + ".price-material");
                     Material priceMaterial = priceMaterialName != null ? Material.matchMaterial(priceMaterialName) : null;
                     int priceAmount = section.getInt(key + ".price-amount", 0);
                     double moneyPrice = section.getDouble(key + ".money-price", 0.0);
                     long createdAt = section.getLong(key + ".created-at", System.currentTimeMillis());
+                    String targetPlayerStr = section.getString(key + ".target-player");
+                    UUID targetPlayer = targetPlayerStr != null ? UUID.fromString(targetPlayerStr) : null;
 
                     ConfigurationSection itemSection = section.getConfigurationSection(key + ".item");
                     ItemStack item = null;
@@ -291,14 +212,12 @@ public class ShopManager {
                         Map<String, Object> map = itemSection.getValues(false);
                         item = ItemStack.deserialize(map);
                     }
-
                     if (item == null) continue;
 
                     Listing listing = new Listing(id, sellerUuid, sellerName, item,
-                            priceMaterial, priceAmount, moneyPrice, categoryName, createdAt);
+                            priceMaterial, priceAmount, moneyPrice, categoryName, createdAt, targetPlayer);
                     listings.put(id, listing);
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) {}
             }
         }
 
@@ -320,8 +239,7 @@ public class ShopManager {
                     if (!payments.isEmpty()) {
                         pendingPayments.put(uuid, payments);
                     }
-                } catch (IllegalArgumentException ignored) {
-                }
+                } catch (IllegalArgumentException ignored) {}
             }
         }
     }
@@ -331,19 +249,21 @@ public class ShopManager {
         for (Map.Entry<UUID, Listing> entry : listings.entrySet()) {
             String key = entry.getKey().toString();
             Listing l = entry.getValue();
-            data.set(key + ".seller", l.getSellerUuid().toString());
-            data.set(key + ".seller-uuid", l.getSellerUuid().toString());
-            data.set(key + ".seller-name", l.getSellerName());
-            data.set(key + ".category", l.getCategoryName());
+            data.set("listings." + key + ".seller-uuid", l.getSellerUuid().toString());
+            data.set("listings." + key + ".seller-name", l.getSellerName());
+            data.set("listings." + key + ".category", l.getCategoryName());
             if (l.getPriceMaterial() != null) {
-                data.set(key + ".price-material", l.getPriceMaterial().name());
-                data.set(key + ".price-amount", l.getPriceAmount());
+                data.set("listings." + key + ".price-material", l.getPriceMaterial().name());
+                data.set("listings." + key + ".price-amount", l.getPriceAmount());
             }
             if (l.getMoneyPrice() > 0) {
-                data.set(key + ".money-price", l.getMoneyPrice());
+                data.set("listings." + key + ".money-price", l.getMoneyPrice());
             }
-            data.set(key + ".created-at", l.getCreatedAt());
-            data.set(key + ".item", l.getItemStack().serialize());
+            data.set("listings." + key + ".created-at", l.getCreatedAt());
+            data.set("listings." + key + ".item", l.getItemStack().serialize());
+            if (l.getTargetPlayer() != null) {
+                data.set("listings." + key + ".target-player", l.getTargetPlayer().toString());
+            }
         }
 
         data.set("pending-payments", null);
@@ -362,10 +282,10 @@ public class ShopManager {
     }
 
     public Category addListing(Player seller, ItemStack item, Material priceMaterial,
-                               int priceAmount, double moneyPrice, String categoryName) {
+                               int priceAmount, double moneyPrice, String categoryName, UUID targetPlayer) {
         UUID id = UUID.randomUUID();
         Listing listing = new Listing(id, seller.getUniqueId(), seller.getName(), item,
-                priceMaterial, priceAmount, moneyPrice, categoryName, System.currentTimeMillis());
+                priceMaterial, priceAmount, moneyPrice, categoryName, System.currentTimeMillis(), targetPlayer);
         listings.put(id, listing);
         save();
         return getCategory(categoryName);
@@ -427,6 +347,7 @@ public class ShopManager {
         return payments != null ? payments : Collections.emptyMap();
     }
 
+    // ===== Внутренние классы =====
     public static class Category {
         private final String name;
         private final Material icon;
@@ -448,15 +369,16 @@ public class ShopManager {
         private final UUID sellerUuid;
         private final String sellerName;
         private final ItemStack itemStack;
-        private final Material priceMaterial; // может быть null, если только валюта
+        private final Material priceMaterial;
         private final int priceAmount;
-        private final double moneyPrice; // 0 = нет денежной части
+        private final double moneyPrice;
         private final String categoryName;
         private final long createdAt;
+        private final UUID targetPlayer;
 
         public Listing(UUID id, UUID sellerUuid, String sellerName, ItemStack itemStack,
                        Material priceMaterial, int priceAmount, double moneyPrice,
-                       String categoryName, long createdAt) {
+                       String categoryName, long createdAt, UUID targetPlayer) {
             this.id = id;
             this.sellerUuid = sellerUuid;
             this.sellerName = sellerName;
@@ -466,6 +388,7 @@ public class ShopManager {
             this.moneyPrice = moneyPrice;
             this.categoryName = categoryName;
             this.createdAt = createdAt;
+            this.targetPlayer = targetPlayer;
         }
 
         public UUID getId() { return id; }
@@ -477,5 +400,6 @@ public class ShopManager {
         public double getMoneyPrice() { return moneyPrice; }
         public String getCategoryName() { return categoryName; }
         public long getCreatedAt() { return createdAt; }
+        public UUID getTargetPlayer() { return targetPlayer; }
     }
 }
