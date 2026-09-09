@@ -49,7 +49,7 @@ public class CountryGUI implements Listener {
         player.openInventory(inv);
     }
 
-    private void openManageMenu(Player player) {
+    public void openManageMenu(Player player) {
         Inventory inv = Bukkit.createInventory(null, 54, MANAGE_TITLE);
         fillEmptyWithGlass(inv);
 
@@ -82,7 +82,6 @@ public class CountryGUI implements Listener {
                 List.of("§7Дерево технологий")));
 
         // Пятый ряд (36,38,40,42,44)
-        // Кнопка текущего события (слот 36)
         EventManager eventManager = plugin.getEventManager();
         String eventName = eventManager.getActiveEventName();
         if (eventName != null) {
@@ -101,10 +100,12 @@ public class CountryGUI implements Listener {
         // Третий ряд (46,48,50,52)
         inv.setItem(46, createButton(Material.DIAMOND_PICKAXE, "§aШахтёрский бонус",
                 List.of("§7Спешка за шахтёрские чанки")));
+        inv.setItem(47, createButton(Material.CHEST, "§aМагазин",
+                List.of("§7Открыть серверный магазин", "§7(/shop)")));
         inv.setItem(48, createButton(Material.CRAFTING_TABLE, "§aУлучшение чанка",
                 List.of("§7Ферма, шахта, военный, торговый")));
-        inv.setItem(50, createButton(Material.NAME_TAG, "§aПереименовать",
-                List.of("§7/country rename <новое>")));
+        inv.setItem(50, createButton(Material.COMMAND_BLOCK, "§6Управление страной",
+                List.of("§7Удалить, переименовать")));
         inv.setItem(52, createButton(Material.OAK_SIGN, "§eИнформация",
                 List.of("§7Страна: §f" + country, "§7Чанков: §f" + claims,
                         "§7Энергия: §f" + String.format("%.1f", energy) + "/" + String.format("%.1f", maxEnergy))));
@@ -158,11 +159,12 @@ public class CountryGUI implements Listener {
             else if (slot == 30) { player.closeInventory(); player.performCommand("country unstuck"); }
             else if (slot == 32) { player.closeInventory(); plugin.getTopGUI().open(player, "claims"); }
             else if (slot == 34) { player.closeInventory(); plugin.getTechnologyGUI().open(player); }
-            else if (slot == 36) { /* событие — закрываем меню */ player.closeInventory(); }
+            else if (slot == 36) { player.closeInventory(); }
             else if (slot == 40) { player.closeInventory(); plugin.getCourtGUI().open(player); }
             else if (slot == 46) { player.closeInventory(); player.performCommand("country miningboost"); }
+            else if (slot == 47) { player.closeInventory(); player.performCommand("shop"); }
             else if (slot == 48) { player.closeInventory(); plugin.getChunkUpgradeGUI().open(player); }
-            else if (slot == 50) { player.closeInventory(); player.sendMessage("§eВведите: /country rename <новое>"); }
+            else if (slot == 50) { player.closeInventory(); plugin.getManageCountryGUI().open(player); }
             else if (slot == 52) { player.closeInventory(); player.performCommand("country info"); }
         }
     }

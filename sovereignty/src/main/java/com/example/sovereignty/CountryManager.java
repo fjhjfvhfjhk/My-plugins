@@ -17,7 +17,6 @@ public class CountryManager {
     private final EconomyManager economyManager;
     private final int baseMaxClaims;
 
-    // Разрешённые символы: буквы, цифры, пробел, дефис, подчёркивание
     private static final String NAME_PATTERN = "^[а-яА-Яa-zA-Z0-9 _-]+$";
 
     public CountryManager(SovereigntyPlugin plugin, DatabaseManager db,
@@ -143,6 +142,13 @@ public class CountryManager {
                     ps.setString(2, oldName);
                     ps.executeUpdate();
                 }
+                // Обновляем соправителей (таблица co_rulers)
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE co_rulers SET country_name=? WHERE country_name=?")) {
+                    ps.setString(1, newName);
+                    ps.setString(2, oldName);
+                    ps.executeUpdate();
+                }
                 conn.commit();
                 plugin.getLogger().info("Страна переименована: " + oldName + " -> " + newName);
                 return true;
@@ -190,6 +196,11 @@ public class CountryManager {
         String existingOwner = getChunkOwner(chunk.getWorld(), chunk.getX(), chunk.getZ());
 
         if (existingOwner != null && !existingOwner.equals(countryName)) {
+            // Проверка пакта о ненападении
+            if (plugin.getPactManager().hasNonAggressionPact(countryName, existingOwner)) {
+                player.sendMessage("§cВы не можете захватывать чанки страны, с которой у вас пакт о ненападении.");
+                return false;
+            }
             if (!isEnemy(countryName, existingOwner)) return false;
             if (plugin.getDefensiveManager().isDefended(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
                 player.sendMessage("§cЭтот чанк защищён! Сначала убейте владельца.");
@@ -320,7 +331,11 @@ public class CountryManager {
     public boolean isEnemy(String a, String b) { return getRelation(a, b).equals("enemy"); }
 
     public void setAlly(String a, String b) { setRelationInternal(a, b, "ally"); }
-    public void setEnemy(String a, String b) { setRelationInternal(a, b, "enemy"); }
+    public void setEnemy(String a, String b) {
+        setRelationInternal(a, b, "enemy");
+        // Удаляем пакт о ненападении при объявлении войны
+        plugin.getPactManager().removeNonAggressionPact(a, b);
+    }
     public void setNeutral(String a, String b) { setRelationInternal(a, b, "neutral"); }
 
     private void setRelationInternal(String a, String b, String relation) {
@@ -379,6 +394,15 @@ public class CountryManager {
         return changeBankBalance(countryName, -amount);
     }
 
+    public double withdrawAllFromBank(String countryName) {
+        double balance = getBankBalance(countryName);
+        if (balance <= 0) return 0.0;
+        if (changeBankBalance(countryName, -balance)) {
+            return balance;
+        }
+        return -1.0;
+    }
+
     public void addCountryDebt(String countryName, double amount) {
         changeDebt(countryName, amount);
     }
@@ -435,5 +459,110 @@ public class CountryManager {
             }
         } catch (SQLException e) { e.printStackTrace(); }
         return false;
+    }
+
+    // ===== Соправители =====
+
+    public boolean isLeader(UUID playerUuid, String countryName) {
+        return countryName.equals(getCountryName(playerUuid));
+    }
+
+    public boolean isCoRuler(UUID playerUuid, String countryName) {
+        String sql = "SELECT 1 FROM co_rulers WHERE country_name=? AND player_uuid=?";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, countryName);
+            ps.setString(2, playerUuid.toString());
+            return ps.executeQuery().next();
+        } catch (SQLException e) { e.printStackTrace(); return false; }
+    }
+
+    public boolean isLeaderOrCoRuler(UUID playerUuid, String countryName) {
+        return isLeader(playerUuid, countryName) || isCoRuler(playerUuid, countryName);
+    }
+
+    public boolean addCoRuler(String countryName, UUID playerUuid) {
+        String sql = "INSERT OR IGNORE INTO co_rulers(country_name, player_uuid) VALUES(?,?)";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, countryName);
+            ps.setString(2, playerUuid.toString());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) { e.printStackTrace(); return false; }
+    }
+
+    public boolean removeCoRuler(String countryName, UUID playerUuid) {
+        String sql = "DELETE FROM co_rulers WHERE country_name=? AND player_uuid=?";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, countryName);
+            ps.setString(2, playerUuid.toString());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) { e.printStackTrace(); return false; }
+    }
+
+    public List<UUID> getCoRulers(String countryName) {
+        List<UUID> result = new ArrayList<>();
+        String sql = "SELECT player_uuid FROM co_rulers WHERE country_name=?";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, countryName);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) result.add(UUID.fromString(rs.getString("player_uuid")));
+        } catch (SQLException e) { e.printStackTrace(); }
+        return result;
+    }
+
+    // ===== Удаление страны (для completeness, но без GUI) =====
+    public boolean deleteCountry(String countryName) {
+        try (Connection conn = db.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM countries WHERE name=?")) {
+                    ps.setString(1, countryName);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM chunks WHERE country_name=?")) {
+                    ps.setString(1, countryName);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM relations WHERE country_a=? OR country_b=?")) {
+                    ps.setString(1, countryName);
+                    ps.setString(2, countryName);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM country_bank WHERE country_name=?")) {
+                    ps.setString(1, countryName);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM pacts WHERE country_a=? OR country_b=?")) {
+                    ps.setString(1, countryName);
+                    ps.setString(2, countryName);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM wars WHERE attacker=? OR defender=?")) {
+                    ps.setString(1, countryName);
+                    ps.setString(2, countryName);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM co_rulers WHERE country_name=?")) {
+                    ps.setString(1, countryName);
+                    ps.executeUpdate();
+                }
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                plugin.getLogger().severe("Ошибка удаления страны " + countryName + ": " + e.getMessage());
+                e.printStackTrace();
+                return false;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Не удалось открыть транзакцию для удаления страны: " + e.getMessage());
+            return false;
+        }
     }
 }

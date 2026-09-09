@@ -101,6 +101,13 @@ public class ProtectionListener implements Listener {
             String b = countryManager.getCountryName(v.getUniqueId());
             if (a == null || b == null) return;
 
+            // Проверка пакта о ненападении
+            if (plugin.getPactManager().hasNonAggressionPact(a, b)) {
+                e.setCancelled(true);
+                p.sendMessage("§cМежду вашими странами действует пакт о ненападении.");
+                return;
+            }
+
             boolean allow;
             if (countryManager.isAlly(a, b)) allow = plugin.getConfig().getBoolean("pvp-ally", false);
             else if (countryManager.isEnemy(a, b)) allow = plugin.getConfig().getBoolean("pvp-enemy", true);

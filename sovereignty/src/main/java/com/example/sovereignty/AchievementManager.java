@@ -1,7 +1,9 @@
 package com.example.sovereignty;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.sql.*;
 import java.util.HashMap;
@@ -11,6 +13,7 @@ import java.util.UUID;
 
 /**
  * Достижения: награды за расширение, экономику, дипломатию, энергию и улучшения.
+ * Теперь с предметными призами.
  */
 public class AchievementManager {
 
@@ -20,6 +23,9 @@ public class AchievementManager {
     private final EnergyManager energyManager;
     private final ChunkUpgradeManager chunkUpgradeManager;
 
+    // Карта наград для ачивок (предметы)
+    private final Map<String, ItemStack> rewards = new HashMap<>();
+
     public AchievementManager(SovereigntyPlugin plugin, DatabaseManager db,
                               CountryManager countryManager, EnergyManager energyManager,
                               ChunkUpgradeManager chunkUpgradeManager) {
@@ -28,6 +34,38 @@ public class AchievementManager {
         this.countryManager = countryManager;
         this.energyManager = energyManager;
         this.chunkUpgradeManager = chunkUpgradeManager;
+        initRewards();
+    }
+
+    private void initRewards() {
+        // Территория
+        rewards.put("territory_25", new ItemStack(Material.DIAMOND, 16));
+        rewards.put("territory_100", new ItemStack(Material.DIAMOND, 32));
+        rewards.put("territory_200", new ItemStack(Material.DIAMOND, 64));
+
+        // Экономика
+        rewards.put("economy_50k", new ItemStack(Material.EMERALD, 16));
+        rewards.put("economy_500k", new ItemStack(Material.EMERALD, 32));
+        rewards.put("economy_1m", new ItemStack(Material.EMERALD, 64));
+
+        // Энергия
+        rewards.put("energy_max", new ItemStack(Material.GOLDEN_APPLE, 8));
+
+        // Улучшенные чанки
+        rewards.put("upgraded_1", new ItemStack(Material.NETHERITE_INGOT, 1));
+        rewards.put("upgraded_10", new ItemStack(Material.NETHERITE_INGOT, 4));
+        rewards.put("upgraded_20", new ItemStack(Material.NETHERITE_INGOT, 8));
+        rewards.put("upgraded_50", new ItemStack(Material.NETHERITE_INGOT, 16));
+
+        // Максимум всех улучшений
+        rewards.put("max_all_upgrades", new ItemStack(Material.TOTEM_OF_UNDYING, 1));
+
+        // Дипломатия
+        rewards.put("alliances_5", new ItemStack(Material.TOTEM_OF_UNDYING, 2));
+        rewards.put("alliances_10", new ItemStack(Material.TOTEM_OF_UNDYING, 5));
+
+        // Военные пакты
+        rewards.put("military_pacts_3", new ItemStack(Material.TOTEM_OF_UNDYING, 3));
     }
 
     /**
@@ -45,53 +83,74 @@ public class AchievementManager {
         int upgradedChunks = chunkUpgradeManager.countUpgradedChunks(country);
 
         // Территория
-        checkAndAward(uuid, country, "territory_25", claims >= 25, 5000, 10);
-        checkAndAward(uuid, country, "territory_100", claims >= 100, 25000, 25);
-        checkAndAward(uuid, country, "territory_200", claims >= 200, 60000, 50);
+        checkAndAward(uuid, country, "territory_25", claims >= 25, 5000, 10, rewards.get("territory_25"));
+        checkAndAward(uuid, country, "territory_100", claims >= 100, 25000, 25, rewards.get("territory_100"));
+        checkAndAward(uuid, country, "territory_200", claims >= 200, 60000, 50, rewards.get("territory_200"));
 
         // Экономика
-        checkAndAward(uuid, country, "economy_50k", bank >= 50000, 10000, 0);
-        checkAndAward(uuid, country, "economy_500k", bank >= 500000, 50000, 0);
-        checkAndAward(uuid, country, "economy_1m", bank >= 1000000, 150000, 0);
+        checkAndAward(uuid, country, "economy_50k", bank >= 50000, 10000, 0, rewards.get("economy_50k"));
+        checkAndAward(uuid, country, "economy_500k", bank >= 500000, 50000, 0, rewards.get("economy_500k"));
+        checkAndAward(uuid, country, "economy_1m", bank >= 1000000, 150000, 0, rewards.get("economy_1m"));
 
         // Энергия
-        checkAndAward(uuid, country, "energy_max", energy >= maxEnergy && maxEnergy >= 10, 3000, 5);
+        checkAndAward(uuid, country, "energy_max", energy >= maxEnergy && maxEnergy >= 10, 3000, 5, rewards.get("energy_max"));
 
         // Улучшенные чанки
-        checkAndAward(uuid, country, "upgraded_1", upgradedChunks >= 1, 1000, 0);
-        checkAndAward(uuid, country, "upgraded_10", upgradedChunks >= 10, 8000, 5);
-        checkAndAward(uuid, country, "upgraded_20", upgradedChunks >= 20, 20000, 10);
-        checkAndAward(uuid, country, "upgraded_50", upgradedChunks >= 50, 50000, 20);
+        checkAndAward(uuid, country, "upgraded_1", upgradedChunks >= 1, 1000, 0, rewards.get("upgraded_1"));
+        checkAndAward(uuid, country, "upgraded_10", upgradedChunks >= 10, 8000, 5, rewards.get("upgraded_10"));
+        checkAndAward(uuid, country, "upgraded_20", upgradedChunks >= 20, 20000, 10, rewards.get("upgraded_20"));
+        checkAndAward(uuid, country, "upgraded_50", upgradedChunks >= 50, 50000, 20, rewards.get("upgraded_50"));
 
         // Улучшения (максимум всех веток)
         checkAndAward(uuid, country, "max_all_upgrades",
-                isMaxUpgrades(uuid), 100000, 50);
+                isMaxUpgrades(uuid), 100000, 50, rewards.get("max_all_upgrades"));
 
         // Дипломатия (союзы и военные пакты)
         int alliances = countAlliances(country);
-        checkAndAward(uuid, country, "alliances_5", alliances >= 5, 5000, 0);
-        checkAndAward(uuid, country, "alliances_10", alliances >= 10, 15000, 0);
+        checkAndAward(uuid, country, "alliances_5", alliances >= 5, 5000, 0, rewards.get("alliances_5"));
+        checkAndAward(uuid, country, "alliances_10", alliances >= 10, 15000, 0, rewards.get("alliances_10"));
 
         int militaryPacts = countPactsOfType(country, "military");
-        checkAndAward(uuid, country, "military_pacts_3", militaryPacts >= 3, 8000, 0);
+        checkAndAward(uuid, country, "military_pacts_3", militaryPacts >= 3, 8000, 0, rewards.get("military_pacts_3"));
     }
 
     private void checkAndAward(UUID uuid, String country, String achievementId,
-                               boolean condition, double moneyReward, double energyReward) {
+                               boolean condition, double moneyReward, double energyReward, ItemStack itemReward) {
         if (!condition) return;
         if (isClaimed(uuid, achievementId)) return;
 
         if (moneyReward > 0) countryManager.depositToBank(country, moneyReward);
         if (energyReward > 0) energyManager.addEnergy(uuid, energyReward);
+        if (itemReward != null) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null) {
+                // Попытка положить в инвентарь, если не влезет – выбросить на землю
+                HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(itemReward.clone());
+                if (!leftover.isEmpty()) {
+                    for (ItemStack drop : leftover.values()) {
+                        player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                    }
+                }
+            }
+        }
 
         markClaimed(uuid, achievementId);
 
         Player player = Bukkit.getPlayer(uuid);
         if (player != null) {
+            StringBuilder rewardMsg = new StringBuilder();
+            if (moneyReward > 0) rewardMsg.append(plugin.getEconomyManager().format(moneyReward)).append(" в казну");
+            if (energyReward > 0) {
+                if (rewardMsg.length() > 0) rewardMsg.append(", ");
+                rewardMsg.append("+").append(String.format("%.1f", energyReward)).append(" энергии");
+            }
+            if (itemReward != null) {
+                if (rewardMsg.length() > 0) rewardMsg.append(", ");
+                String itemName = itemReward.getType().name().toLowerCase().replace('_', ' ');
+                rewardMsg.append(itemReward.getAmount()).append(" × ").append(itemName);
+            }
             player.sendMessage("§a🏆 Достижение получено: " + getDisplayName(achievementId) +
-                    "! Награда: " +
-                    (moneyReward > 0 ? plugin.getEconomyManager().format(moneyReward) + " в казну" : "") +
-                    (energyReward > 0 ? " +" + String.format("%.1f", energyReward) + " энергии" : ""));
+                    "! Награда: " + rewardMsg.toString());
         }
     }
 

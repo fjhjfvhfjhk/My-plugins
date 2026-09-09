@@ -95,6 +95,8 @@ public class DiplomacyGUI implements Listener {
                 List.of("§7Совместные войны,", "§7координация атак.")));
         inv.setItem(30, createButton(Material.SHIELD, "§eПакт: Оборонительный",
                 List.of("§7Взаимная защита,", "§7нельзя захватывать друг друга.")));
+        inv.setItem(32, createButton(Material.GREEN_WOOL, "§eПакт: Ненападение",
+                List.of("§7Запрещает атаки и захват чанков", "§7между странами.")));
         inv.setItem(31, createButton(Material.BARRIER, "§cРасторгнуть пакты",
                 List.of("§7Сбросить все пакты с этой страной.")));
 
@@ -146,9 +148,18 @@ public class DiplomacyGUI implements Listener {
             UUID targetOwner = countryManager.getOwner(targetCountry);
 
             // Проверка дипломатического бана для действий, связанных с дипломатией
-            if (slot == 10 || slot == 12 || slot == 13 || slot == 28 || slot == 29 || slot == 30) {
+            if (slot == 10 || slot == 12 || slot == 13 || slot == 28 || slot == 29 || slot == 30 || slot == 32) {
                 if (countryManager.isDiplomacyBanned(myCountry)) {
                     player.sendMessage("§cВаша дипломатия временно заблокирована санкцией!");
+                    openActions(player, targetCountry);
+                    return;
+                }
+            }
+
+            // Проверка пакта о ненападении для объявления войны
+            if (slot == 13) {
+                if (plugin.getPactManager().hasNonAggressionPact(myCountry, targetCountry)) {
+                    player.sendMessage("§cВы не можете объявить войну, так как у вас действует пакт о ненападении!");
                     openActions(player, targetCountry);
                     return;
                 }
@@ -194,8 +205,9 @@ public class DiplomacyGUI implements Listener {
                 case 28 -> handlePactRequest(player, targetCountry, "trade");
                 case 29 -> handlePactRequest(player, targetCountry, "military");
                 case 30 -> handlePactRequest(player, targetCountry, "defense");
+                case 32 -> handlePactRequest(player, targetCountry, "nonaggression");
                 case 31 -> {
-                    for (String type : new String[]{"trade","military","defense"}) {
+                    for (String type : new String[]{"trade","military","defense","nonaggression"}) {
                         plugin.getPactManager().removePact(myCountry, targetCountry, type);
                     }
                     player.sendMessage("§cПакты расторгнуты.");
@@ -261,6 +273,7 @@ public class DiplomacyGUI implements Listener {
                     case "trade" -> "торговый пакт";
                     case "military" -> "военный пакт";
                     case "defense" -> "оборонительный пакт";
+                    case "nonaggression" -> "пакт о ненападении";
                     default -> type;
                 };
                 target.sendMessage("§e" + player.getName() + " (§f" + myCountry + "§e) отправил вам запрос на " + typeName + ".");

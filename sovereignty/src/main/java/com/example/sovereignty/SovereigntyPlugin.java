@@ -39,6 +39,9 @@ public final class SovereigntyPlugin extends JavaPlugin {
     private ChunkUpgradeGUI chunkUpgradeGUI;
     private TopGUI topGUI;
     private ClaimGUI claimGUI;
+    private InviteManager inviteManager;
+    private ManageCountryGUI manageCountryGUI;
+    private ConfirmDeleteGUI confirmDeleteGUI;
 
     private final Set<UUID> autoClaimPlayers = new HashSet<>();
 
@@ -63,6 +66,9 @@ public final class SovereigntyPlugin extends JavaPlugin {
         this.chunkBorderManager = new ChunkBorderManager(this, countryManager);
         this.chunkBorderGUI = new ChunkBorderGUI(this, chunkBorderManager);
         this.requestManager = new AllianceRequestManager();
+        this.inviteManager = new InviteManager();
+        this.manageCountryGUI = new ManageCountryGUI(this);
+        this.confirmDeleteGUI = new ConfirmDeleteGUI(this);
 
         if (!economyManager.isEnabled()) {
             getLogger().warning("Vault/экономика не найдены.");
@@ -97,6 +103,8 @@ public final class SovereigntyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(courtGUI, this);
 
         getServer().getPluginManager().registerEvents(chunkBorderGUI, this);
+        getServer().getPluginManager().registerEvents(manageCountryGUI, this);
+        getServer().getPluginManager().registerEvents(confirmDeleteGUI, this);
 
         this.protectionListener = new ProtectionListener(this, countryManager);
         getServer().getPluginManager().registerEvents(protectionListener, this);
@@ -174,4 +182,7 @@ public final class SovereigntyPlugin extends JavaPlugin {
     public ChunkUpgradeGUI getChunkUpgradeGUI() { return chunkUpgradeGUI; }
     public TopGUI getTopGUI() { return topGUI; }
     public ClaimGUI getClaimGUI() { return claimGUI; }
+    public InviteManager getInviteManager() { return inviteManager; }
+    public ManageCountryGUI getManageCountryGUI() { return manageCountryGUI; }
+    public ConfirmDeleteGUI getConfirmDeleteGUI() { return confirmDeleteGUI; }
 }

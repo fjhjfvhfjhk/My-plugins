@@ -30,9 +30,6 @@ public class DatabaseManager {
         }
     }
 
-    /**
-     * Возвращает активное соединение. Если соединение закрыто, переподключается.
-     */
     public Connection getConnection() {
         try {
             if (connection == null || connection.isClosed()) {
@@ -156,6 +153,15 @@ public class DatabaseManager {
             )
         """);
 
+        // Новая таблица для соправителей
+        stmt.executeUpdate("""
+            CREATE TABLE IF NOT EXISTS co_rulers (
+                country_name TEXT NOT NULL,
+                player_uuid TEXT NOT NULL,
+                PRIMARY KEY (country_name, player_uuid)
+            )
+        """);
+
         stmt.close();
     }
 
@@ -201,6 +207,7 @@ public class DatabaseManager {
                     stmt.executeUpdate("ALTER TABLE court_votes ADD COLUMN sanctions TEXT");
                 }
             }
+            // Проверка на существование таблицы co_rulers не нужна, т.к. она создаётся выше
         } catch (SQLException e) {
             plugin.getLogger().severe("Ошибка миграции базы данных: " + e.getMessage());
             e.printStackTrace();

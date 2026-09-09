@@ -54,6 +54,19 @@ public class PactManager {
         } catch (SQLException e) { e.printStackTrace(); }
     }
 
+    // Пакт о ненападении
+    public boolean hasNonAggressionPact(String a, String b) {
+        return hasPact(a, b, "nonaggression");
+    }
+
+    public boolean addNonAggressionPact(String a, String b) {
+        return addPact(a, b, "nonaggression");
+    }
+
+    public void removeNonAggressionPact(String a, String b) {
+        removePact(a, b, "nonaggression");
+    }
+
     public boolean declareWar(String attacker, String defender) {
         String sql = "INSERT OR REPLACE INTO wars(attacker, defender) VALUES(?,?)";
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
@@ -85,10 +98,6 @@ public class PactManager {
         return null;
     }
 
-    /**
-     * Капитуляция: репарации = процент от казны.
-     * Сначала казна, затем личный счёт владельца, если не хватает — долг страны.
-     */
     public boolean surrender(Player defenderPlayer) {
         String defender = countryManager.getCountryName(defenderPlayer.getUniqueId());
         if (defender == null) return false;
@@ -99,13 +108,11 @@ public class PactManager {
         double treasuryBalance = countryManager.getBankBalance(defender);
         double reparations = treasuryBalance * (percent / 100.0);
 
-        // 1. Казна
         double fromTreasury = Math.min(reparations, treasuryBalance);
         if (fromTreasury > 0) countryManager.withdrawFromBank(defender, fromTreasury);
 
         double remaining = reparations - fromTreasury;
 
-        // 2. Личный счёт владельца
         if (remaining > 0) {
             OfflinePlayer owner = Bukkit.getOfflinePlayer(defenderPlayer.getUniqueId());
             EconomyManager eco = plugin.getEconomyManager();
@@ -115,12 +122,10 @@ public class PactManager {
             }
         }
 
-        // 3. Долг страны
         if (remaining > 0) {
             countryManager.addCountryDebt(defender, remaining);
         }
 
-        // Переводим атакующему то, что реально получили
         double collected = reparations - remaining;
         if (collected > 0) {
             countryManager.depositToBank(attacker, collected);
