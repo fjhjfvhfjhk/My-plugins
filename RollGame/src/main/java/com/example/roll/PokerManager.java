@@ -12,6 +12,9 @@ import org.bukkit.scheduler.BukkitTask;
 import java.time.Duration;
 import java.util.*;
 
+/**
+ * Техасский Холдем. Упрощённая и дружелюбная версия.
+ */
 public class PokerManager {
 
     private final RollPlugin plugin;
@@ -38,6 +41,8 @@ public class PokerManager {
     }
     public Collection<PokerTable> getAllTables() { return tables.values(); }
 
+    // ========== Создание / вход / выход ==========
+
     public boolean createTable(Player creator, long buyIn) {
         if (playerTable.containsKey(creator.getUniqueId())) {
             creator.sendMessage("§cВы уже за столом #" + playerTable.get(creator.getUniqueId()));
@@ -62,15 +67,19 @@ public class PokerManager {
         creator.sendMessage("§7Бай-ин: §f" + plugin.getEconomyManager().format(buyIn) +
                 "§7. Блайнды: §f" + table.smallBlind + "/" + table.bigBlind);
         creator.sendMessage("§eПригласите друзей: §f/roll poker join " + table.id);
+        creator.sendMessage("§eКогда все готовы: §f/roll poker start");
         return true;
     }
 
     public boolean joinTable(Player player, int tableId) {
-        if (playerTable.containsKey(player.getUniqueId())) { player.sendMessage("§cВы уже за столом."); return false; }
+        if (playerTable.containsKey(player.getUniqueId())) {
+            player.sendMessage("§cВы уже за столом.");
+            return false;
+        }
         PokerTable table = tables.get(tableId);
         if (table == null) { player.sendMessage("§cСтол #" + tableId + " не найден."); return false; }
         if (table.stage != PokerTable.Stage.WAITING) { player.sendMessage("§cИгра уже началась."); return false; }
-        if (table.players.size() >= 6) { player.sendMessage("§cСтол заполнен."); return false; }
+        if (table.players.size() >= 6) { player.sendMessage("§cСтол заполнен (макс. 6)."); return false; }
 
         if (!plugin.getEconomyManager().has(player, table.buyIn)) {
             player.sendMessage("§cНедостаточно денег. Нужно: " + plugin.getEconomyManager().format(table.buyIn));
@@ -90,6 +99,7 @@ public class PokerManager {
     public void leaveTable(Player player) {
         PokerTable table = getPlayerTable(player.getUniqueId());
         if (table == null) { player.sendMessage("§cВы не за столом."); return; }
+
         PokerTable.Player p = table.getPlayer(player.getUniqueId());
 
         if (table.stage != PokerTable.Stage.WAITING) {
@@ -105,7 +115,10 @@ public class PokerManager {
             }
             player.closeInventory();
             if (table.activePlayerCount() <= 1) advanceTurn(table);
-            if (table.players.isEmpty()) { tables.remove(table.id); pendingCommunity.remove(table.id); }
+            if (table.players.isEmpty()) {
+                tables.remove(table.id);
+                pendingCommunity.remove(table.id);
+            }
             return;
         }
 
@@ -134,6 +147,8 @@ public class PokerManager {
         startNewHand(table);
         return true;
     }
+
+    // ========== Раздача ==========
 
     private void startNewHand(PokerTable table) {
         table.players.entrySet().removeIf(e -> !playerTable.containsKey(e.getKey()));
@@ -179,12 +194,18 @@ public class PokerManager {
 
         List<PokerHand.Card> deck = PokerHand.newDeck();
         int idx = 0;
-        for (int i = 0; i < 2; i++) for (PokerTable.Player p : table.players.values()) p.hole.add(deck.get(idx++));
+        for (int i = 0; i < 2; i++) {
+            for (PokerTable.Player p : table.players.values()) {
+                p.hole.add(deck.get(idx++));
+            }
+        }
         List<PokerHand.Card> community = new ArrayList<>();
         for (int i = 0; i < 5; i++) community.add(deck.get(idx++));
         pendingCommunity.put(table.id, community);
 
-        if (table.handNumber > 1) table.dealerIndex = (table.dealerIndex + 1) % table.players.size();
+        if (table.handNumber > 1) {
+            table.dealerIndex = (table.dealerIndex + 1) % table.players.size();
+        }
 
         broadcastToTable(table, "§6§l═══ Раздача #" + table.handNumber + " ═══");
         broadcastToTable(table, "§7Блайнды: §f" + table.smallBlind + "/" + table.bigBlind);
@@ -213,6 +234,7 @@ public class PokerManager {
                 if (step > totalCards) {
                     table.dealing = false;
                     cancel();
+
                     List<PokerTable.Player> list = table.orderedPlayers();
                     int n = list.size();
                     PokerTable.Player sbPlayer, bbPlayer;
@@ -230,6 +252,7 @@ public class PokerManager {
                     int startIdx = n == 2 ? table.dealerIndex : (table.dealerIndex + 3) % n;
                     table.currentTurn = list.get(startIdx).uuid;
                     table.turnStartTime = System.currentTimeMillis();
+
                     broadcastTurn(table);
                 }
             }
@@ -253,13 +276,15 @@ public class PokerManager {
         if (p != null) p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.5f);
     }
 
+    // ========== Действия ==========
+
     public boolean check(Player player) {
         PokerTable table = getPlayerTable(player.getUniqueId());
         if (table == null || table.currentTurn == null) return false;
         if (table.dealing) { player.sendMessage("§cКарты ещё раздаются."); return false; }
         if (!table.currentTurn.equals(player.getUniqueId())) { player.sendMessage("§cНе ваш ход."); return false; }
         PokerTable.Player p = table.getPlayer(player.getUniqueId());
-        if (p.roundBet < table.highestBet) { player.sendMessage("§cНельзя чек."); return false; }
+        if (p.roundBet < table.highestBet) { player.sendMessage("§cНельзя чек — нужно уравнять."); return false; }
         p.hasActedThisRound = true;
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, 1f);
         broadcastToTable(table, "§7" + p.name + " — §fчек");
@@ -274,7 +299,7 @@ public class PokerManager {
         if (!table.currentTurn.equals(player.getUniqueId())) { player.sendMessage("§cНе ваш ход."); return false; }
         PokerTable.Player p = table.getPlayer(player.getUniqueId());
         long toCall = table.highestBet - p.roundBet;
-        if (toCall <= 0) { player.sendMessage("§cУже уравнено."); return false; }
+        if (toCall <= 0) { player.sendMessage("§cУже уравнено — используйте чек."); return false; }
         long actual = Math.min(toCall, p.chips);
         p.chips -= actual;
         p.contributed += actual;
@@ -359,6 +384,8 @@ public class PokerManager {
         return true;
     }
 
+    // ========== Логика хода ==========
+
     private void advanceTurn(PokerTable table) {
         if (table.activePlayerCount() <= 1) {
             PokerTable.Player last = table.players.values().stream().filter(p -> !p.folded).findFirst().orElse(null);
@@ -391,6 +418,7 @@ public class PokerManager {
         }
         table.highestBet = 0;
         table.lastAggressor = null;
+
         switch (table.stage) {
             case PREFLOP -> revealCommunity(table, 3, PokerTable.Stage.FLOP, "ФЛОП");
             case FLOP -> revealCommunity(table, 1, PokerTable.Stage.TURN, "ТЁРН");
@@ -407,7 +435,9 @@ public class PokerManager {
 
         List<PokerHand.Card> newCards = new ArrayList<>();
         int targetSize = table.community.size() + count;
-        for (int i = table.community.size(); i < targetSize && i < pending.size(); i++) newCards.add(pending.get(i));
+        for (int i = table.community.size(); i < targetSize && i < pending.size(); i++) {
+            newCards.add(pending.get(i));
+        }
 
         broadcastToTable(table, "§6§l═══ " + stageName + " ═══");
 
@@ -439,6 +469,7 @@ public class PokerManager {
                 }
                 broadcastToTable(table, "§7Общие карты: " + formatCommunity(table));
                 cancel();
+
                 Bukkit.getScheduler().runTaskLater(plugin, () -> startBettingRound(table), 10L);
             }
         }.runTaskTimer(plugin, 0L, 6L);
@@ -469,16 +500,22 @@ public class PokerManager {
         refreshGUIs(table);
     }
 
+    // ========== Showdown ==========
+
     private void startShowdown(PokerTable table) {
         table.stage = PokerTable.Stage.SHOWDOWN;
         table.currentTurn = null;
+
         broadcastToTable(table, "§6§l═══ ВСКРЫТИЕ ═══");
 
         List<String> summaryLines = new ArrayList<>();
         summaryLines.add("§6═══ Итоги раздачи #" + table.handNumber + " ═══");
 
         for (PokerTable.Player p : table.players.values()) {
-            if (p.folded) { summaryLines.add("§8" + p.name + " — спасовал"); continue; }
+            if (p.folded) {
+                summaryLines.add("§8" + p.name + " — спасовал");
+                continue;
+            }
             List<PokerHand.Card> seven = new ArrayList<>(p.hole);
             for (PokerHand.Card c : table.community) if (c != null) seven.add(c);
             int[] eval = PokerHand.evaluateBest(seven);
@@ -539,4 +576,273 @@ public class PokerManager {
                     if (wp != null) {
                         wp.showTitle(Title.title(
                                 Component.text("🏆 ПОБЕДА!", NamedTextColor.GOLD),
-                               
+                                Component.text("+" + plugin.getEconomyManager().format(lastAlive.chips), NamedTextColor.GREEN),
+                                Title.Times.times(Duration.ofMillis(500), Duration.ofSeconds(3), Duration.ofMillis(500))));
+                        wp.playSound(wp.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+                    }
+                    lastAlive.chips = 0;
+                }
+                for (UUID uuid : new ArrayList<>(table.players.keySet())) {
+                    playerTable.remove(uuid);
+                    Player pl = Bukkit.getPlayer(uuid);
+                    if (pl != null) pl.closeInventory();
+                }
+                tables.remove(table.id);
+                pendingCommunity.remove(table.id);
+            } else {
+                table.players.entrySet().removeIf(e -> {
+                    if (e.getValue().chips <= 0) {
+                        playerTable.remove(e.getKey());
+                        Player pl = Bukkit.getPlayer(e.getKey());
+                        if (pl != null) { pl.sendMessage("§cВы выбыли."); pl.closeInventory(); }
+                        return true;
+                    }
+                    return false;
+                });
+                startNewHand(table);
+            }
+        }, 120L);
+
+        refreshGUIs(table);
+    }
+
+    private String handNameStr(List<PokerHand.Card> cards) {
+        StringBuilder sb = new StringBuilder();
+        for (PokerHand.Card c : cards) sb.append(c.display()).append(" ");
+        return sb.toString().trim();
+    }
+
+    private UUID distributePotsAndTrack(PokerTable table, List<String> winnerLines) {
+        TreeSet<Long> levels = new TreeSet<>();
+        for (PokerTable.Player p : table.players.values()) {
+            if (!p.folded) levels.add(p.contributed);
+        }
+        if (levels.isEmpty()) return null;
+
+        UUID mainWinner = null;
+        long prevLevel = 0;
+        for (long level : levels) {
+            long potSize = 0;
+            List<PokerTable.Player> eligible = new ArrayList<>();
+            for (PokerTable.Player p : table.players.values()) {
+                long contribution = Math.min(p.contributed, level) - Math.min(p.contributed, prevLevel);
+                if (contribution > 0) potSize += contribution;
+                if (!p.folded && p.contributed >= level) eligible.add(p);
+            }
+            if (potSize > 0 && !eligible.isEmpty()) {
+                UUID winner = awardPotToBest(table, eligible, potSize, winnerLines);
+                if (mainWinner == null) mainWinner = winner;
+            }
+            prevLevel = level;
+        }
+        return mainWinner;
+    }
+
+    private UUID awardPotToBest(PokerTable table, List<PokerTable.Player> eligible, long potSize, List<String> winnerLines) {
+        int[] best = null;
+        List<PokerTable.Player> winners = new ArrayList<>();
+        for (PokerTable.Player p : eligible) {
+            List<PokerHand.Card> seven = new ArrayList<>(p.hole);
+            for (PokerHand.Card c : table.community) if (c != null) seven.add(c);
+            int[] ev = PokerHand.evaluateBest(seven);
+            if (best == null) { best = ev; winners.clear(); winners.add(p); }
+            else {
+                int cmp = PokerHand.compare(ev, best);
+                if (cmp > 0) { best = ev; winners.clear(); winners.add(p); }
+                else if (cmp == 0) winners.add(p);
+            }
+        }
+        long share = potSize / winners.size();
+        long remainder = potSize - share * winners.size();
+        UUID mainWinner = null;
+        for (PokerTable.Player w : winners) {
+            w.chips += share;
+            if (remainder > 0) { w.chips += 1; remainder--; }
+            if (mainWinner == null) mainWinner = w.uuid;
+            broadcastToTable(table, "§a💰 " + w.name + " забирает банк: §f" +
+                    plugin.getEconomyManager().format(share) + " §7(" + PokerHand.handName(best) + ")");
+            winnerLines.add("§a💰 " + w.name + " §7забирает §f" + plugin.getEconomyManager().format(share) +
+                    " §7(" + PokerHand.handName(best) + ")");
+            Player wp = Bukkit.getPlayer(w.uuid);
+            if (wp != null) {
+                wp.showTitle(Title.title(
+                        Component.text("💰 БАНК ВАШ!", NamedTextColor.GOLD),
+                        Component.text("+" + plugin.getEconomyManager().format(share), NamedTextColor.GREEN),
+                        Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(2), Duration.ofMillis(500))));
+                wp.playSound(wp.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
+            }
+        }
+        return mainWinner;
+    }
+
+    private void awardUncontested(PokerTable table, PokerTable.Player winner) {
+        winner.chips += table.pot;
+        broadcastToTable(table, "§a💰 " + winner.name + " забирает банк " +
+                plugin.getEconomyManager().format(table.pot) + " (все спасовали)");
+        Player wp = Bukkit.getPlayer(winner.uuid);
+        if (wp != null) {
+            wp.showTitle(Title.title(
+                    Component.text("💰 БАНК ВАШ!", NamedTextColor.GOLD),
+                    Component.text("+" + plugin.getEconomyManager().format(table.pot), NamedTextColor.GREEN),
+                    Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(2), Duration.ofMillis(500))));
+            wp.playSound(wp.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
+        }
+
+        List<String> lines = new ArrayList<>();
+        lines.add("§6═══ Раздача #" + table.handNumber + " (все спасовали) ═══");
+        lines.add("§a💰 " + winner.name + " забирает " + plugin.getEconomyManager().format(table.pot));
+
+        Map<UUID, Long> profitsThisHand = new HashMap<>();
+        Map<UUID, String> names = new HashMap<>();
+        for (PokerTable.Player p : table.players.values()) {
+            long startChips = table.chipsAtHandStart.getOrDefault(p.uuid, p.chips);
+            profitsThisHand.put(p.uuid, p.chips - startChips);
+            names.put(p.uuid, p.name);
+        }
+
+        plugin.getPokerHistory().addHand(
+                new PokerHistory.Record(System.currentTimeMillis(), winner.uuid, winner.name, table.pot, "все спасовали", lines),
+                profitsThisHand, names);
+
+        table.pot = 0;
+        table.stage = PokerTable.Stage.SHOWDOWN;
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            int alive = 0;
+            PokerTable.Player lastAlive = null;
+            for (PokerTable.Player p : table.players.values()) {
+                if (p.chips > 0) { alive++; lastAlive = p; }
+            }
+            if (alive <= 1) {
+                table.stage = PokerTable.Stage.FINISHED;
+                if (lastAlive != null) {
+                    broadcastToTable(table, "§6§l🏆 Победитель: " + lastAlive.name + "! Забирает " +
+                            plugin.getEconomyManager().format(lastAlive.chips));
+                    plugin.getEconomyManager().deposit(Bukkit.getOfflinePlayer(lastAlive.uuid), lastAlive.chips);
+                    lastAlive.chips = 0;
+                }
+                for (UUID uuid : new ArrayList<>(table.players.keySet())) {
+                    playerTable.remove(uuid);
+                    Player pl = Bukkit.getPlayer(uuid);
+                    if (pl != null) pl.closeInventory();
+                }
+                tables.remove(table.id);
+                pendingCommunity.remove(table.id);
+            } else {
+                table.players.entrySet().removeIf(e -> {
+                    if (e.getValue().chips <= 0) {
+                        playerTable.remove(e.getKey());
+                        Player pl = Bukkit.getPlayer(e.getKey());
+                        if (pl != null) { pl.sendMessage("§cВы выбыли."); pl.closeInventory(); }
+                        return true;
+                    }
+                    return false;
+                });
+                startNewHand(table);
+            }
+        }, 80L);
+        refreshGUIs(table);
+    }
+
+    private void broadcastToTable(PokerTable table, String msg) {
+        for (UUID uuid : table.players.keySet()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) p.sendMessage(msg);
+        }
+    }
+
+    private void refreshGUIs(PokerTable table) {
+        for (UUID uuid : table.players.keySet()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null) continue;
+            if (!playerTable.containsKey(uuid)) continue;
+            if (p.getOpenInventory().getTitle().equals(PokerGUI.TITLE)) {
+                PokerGUI.open(p, table);
+            }
+        }
+    }
+
+    private void startMonitor() {
+        monitorTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                long now = System.currentTimeMillis();
+                if (now - lastBlindIncrease > blindIncreaseMinutes * 60_000L) {
+                    lastBlindIncrease = now;
+                    for (PokerTable t : new ArrayList<>(tables.values())) {
+                        if (t.stage == PokerTable.Stage.WAITING) continue;
+                        t.smallBlind *= 2;
+                        t.bigBlind *= 2;
+                        broadcastToTable(t, "§6⚠ Блайнды повышены: §f" + t.smallBlind + "/" + t.bigBlind);
+                    }
+                }
+                for (PokerTable table : new ArrayList<>(tables.values())) {
+                    if (table.currentTurn == null || table.dealing) continue;
+                    switch (table.stage) {
+                        case PREFLOP, FLOP, TURN, RIVER -> {
+                            if (now - table.turnStartTime > 30_000L) {
+                                PokerTable.Player current = table.getPlayer(table.currentTurn);
+                                if (current != null && !current.folded && !current.allIn) {
+                                    current.folded = true;
+                                    broadcastToTable(table, "§c⏰ " + current.name + " — пас (тайм-аут)");
+                                    advanceTurn(table);
+                                }
+                            }
+                        }
+                        default -> { }
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 100L, 100L);
+    }
+
+    private void startActionBar() {
+        actionBarTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                long now = System.currentTimeMillis();
+                for (PokerTable table : new ArrayList<>(tables.values())) {
+                    boolean inRound = switch (table.stage) {
+                        case PREFLOP, FLOP, TURN, RIVER -> true;
+                        default -> false;
+                    };
+                    if (!inRound || table.currentTurn == null) continue;
+                    if (table.dealing) continue;
+                    PokerTable.Player current = table.getPlayer(table.currentTurn);
+                    if (current == null) continue;
+                    long elapsed = (now - table.turnStartTime) / 1000L;
+                    long remaining = Math.max(0, 30 - elapsed);
+
+                    for (PokerTable.Player p : table.players.values()) {
+                        Player pl = Bukkit.getPlayer(p.uuid);
+                        if (pl == null) continue;
+                        if (p.uuid.equals(table.currentTurn)) {
+                            String handName = computeHandName(p, table);
+                            pl.sendActionBar(Component.text("▶ ВАШ ХОД ", NamedTextColor.GREEN)
+                                    .append(Component.text("(" + remaining + "с) ", NamedTextColor.YELLOW))
+                                    .append(Component.text("│ Рука: ", NamedTextColor.GRAY))
+                                    .append(Component.text(handName, NamedTextColor.AQUA)));
+                        } else {
+                            pl.sendActionBar(Component.text("Ход: ", NamedTextColor.GRAY)
+                                    .append(Component.text(current.name, NamedTextColor.WHITE))
+                                    .append(Component.text(" (" + remaining + "с)", NamedTextColor.YELLOW)));
+                        }
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 20L, 20L);
+    }
+
+    private String computeHandName(PokerTable.Player p, PokerTable table) {
+        if (p.hole.size() < 2) return "—";
+        List<PokerHand.Card> seven = new ArrayList<>(p.hole);
+        for (PokerHand.Card c : table.community) if (c != null) seven.add(c);
+        if (seven.size() >= 5) return PokerHand.handName(PokerHand.evaluateBest(seven));
+        return "ожидание";
+    }
+
+    public void shutdown() {
+        if (monitorTask != null) monitorTask.cancel();
+        if (actionBarTask != null) actionBarTask.cancel();
+    }
+}
