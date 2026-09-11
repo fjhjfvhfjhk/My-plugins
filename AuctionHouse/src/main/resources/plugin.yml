@@ -1,0 +1,28 @@
+name: AuctionHouse
+version: 1.0.0
+main: com.example.auction.AuctionPlugin
+api-version: '1.21'
+description: Аукционная система с валютой и предметами
+
+depend: [Vault]
+softdepend: []
+
+commands:
+  auction:
+    aliases: [auc]
+    description: Управление аукционами
+    usage: |
+      §c/auc §7- открыть GUI аукционов
+      §c/auc add <цена> [время_в_минутах] §7- выставить предмет на аукцион (в руке)
+      §c/auc bid <id> <сумма> §7- сделать ставку валютой
+      §c/auc biditem <id> <материал> <кол-во> §7- сделать ставку предметами
+      §c/auc cancel <id> §7- отменить аукцион (только если нет ставок)
+      §c/auc info <id> §7- информация об аукционе
+
+permissions:
+  auction.use:
+    description: Доступ к аукциону
+    default: true
+  auction.admin:
+    description: Админ-команды (отмена любых аукционов)
+    default: op

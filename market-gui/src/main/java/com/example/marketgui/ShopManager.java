@@ -27,7 +27,6 @@ public class ShopManager {
     private static final Map<String, String> BUILT_IN_ITEM_NAMES = new HashMap<>();
 
     static {
-        // Встроенные названия (краткий набор)
         BUILT_IN_MATERIAL_NAMES.put("DIAMOND", "Алмаз");
         BUILT_IN_MATERIAL_NAMES.put("EMERALD", "Изумруд");
         BUILT_IN_MATERIAL_NAMES.put("GOLD_INGOT", "Золотой слиток");
@@ -56,6 +55,13 @@ public class ShopManager {
         BUILT_IN_MATERIAL_NAMES.put("TOTEM_OF_UNDYING", "Тотем бессмертия");
         BUILT_IN_MATERIAL_NAMES.put("ELYTRA", "Элитры");
         BUILT_IN_MATERIAL_NAMES.put("DRAGON_EGG", "Яйцо дракона");
+        BUILT_IN_MATERIAL_NAMES.put("NETHER_STAR", "Звезда Нижнего мира");
+        BUILT_IN_MATERIAL_NAMES.put("BEACON", "Маяк");
+        BUILT_IN_MATERIAL_NAMES.put("CONDUIT", "Морской проводник");
+        BUILT_IN_MATERIAL_NAMES.put("HEART_OF_THE_SEA", "Сердце моря");
+        BUILT_IN_MATERIAL_NAMES.put("NAUTILUS_SHELL", "Раковина наутилуса");
+        BUILT_IN_MATERIAL_NAMES.put("SHULKER_SHELL", "Панцирь шалкера");
+        BUILT_IN_MATERIAL_NAMES.put("END_CRYSTAL", "Кристалл Энда");
 
         BUILT_IN_ITEM_NAMES.put("DIAMOND_SWORD", "Алмазный меч");
         BUILT_IN_ITEM_NAMES.put("IRON_SWORD", "Железный меч");
@@ -163,7 +169,10 @@ public class ShopManager {
     private void loadCategories() {
         categories.clear();
         ConfigurationSection section = plugin.getConfig().getConfigurationSection("categories");
-        if (section == null) return;
+        if (section == null) {
+            categories.put("Редкости", new Category("Редкости", Material.STONE, new ArrayList<>()));
+            return;
+        }
 
         for (String name : section.getKeys(false)) {
             String iconName = section.getString(name + ".icon", "STONE");
@@ -184,7 +193,12 @@ public class ShopManager {
         listings.clear();
         pendingPayments.clear();
         if (!dataFile.exists()) {
-            plugin.saveResource("listings.yml", false);
+            try {
+                dataFile.createNewFile();
+                plugin.getLogger().info("Создан пустой listings.yml");
+            } catch (IOException e) {
+                plugin.getLogger().severe("Не удалось создать listings.yml: " + e.getMessage());
+            }
         }
         this.data = YamlConfiguration.loadConfiguration(dataFile);
 
@@ -203,6 +217,8 @@ public class ShopManager {
                     int priceAmount = section.getInt(key + ".price-amount", 0);
                     double moneyPrice = section.getDouble(key + ".money-price", 0.0);
                     long createdAt = section.getLong(key + ".created-at", System.currentTimeMillis());
+
+                    // Новое поле: targetPlayer
                     String targetPlayerStr = section.getString(key + ".target-player");
                     UUID targetPlayer = targetPlayerStr != null ? UUID.fromString(targetPlayerStr) : null;
 
@@ -217,7 +233,9 @@ public class ShopManager {
                     Listing listing = new Listing(id, sellerUuid, sellerName, item,
                             priceMaterial, priceAmount, moneyPrice, categoryName, createdAt, targetPlayer);
                     listings.put(id, listing);
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Не удалось загрузить объявление " + key + ": " + e.getMessage());
+                }
             }
         }
 
@@ -239,9 +257,13 @@ public class ShopManager {
                     if (!payments.isEmpty()) {
                         pendingPayments.put(uuid, payments);
                     }
-                } catch (IllegalArgumentException ignored) {}
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Не удалось загрузить отложенные платежи: " + e.getMessage());
+                }
             }
         }
+
+        plugin.getLogger().info("Загружено " + listings.size() + " объявлений.");
     }
 
     public void save() {
@@ -374,7 +396,7 @@ public class ShopManager {
         private final double moneyPrice;
         private final String categoryName;
         private final long createdAt;
-        private final UUID targetPlayer;
+        private final UUID targetPlayer; // null = публичная продажа
 
         public Listing(UUID id, UUID sellerUuid, String sellerName, ItemStack itemStack,
                        Material priceMaterial, int priceAmount, double moneyPrice,

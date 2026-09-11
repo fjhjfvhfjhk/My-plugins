@@ -12,9 +12,6 @@ import org.bukkit.inventory.ItemStack;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Обработчик команд /shop.
- */
 public class ShopCommand implements CommandExecutor, TabCompleter {
 
     private final MarketPlugin plugin;
@@ -182,8 +179,6 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             index += 2;
         }
 
-        // Если категория не была указана, а for указан, и после for ничего нет – всё ок
-
         // Проверяем, что у нас есть хоть какая-то цена
         if (priceMaterial == null && moneyPrice <= 0) {
             player.sendMessage("§cВы должны указать цену (материал/количество или money).");
@@ -239,22 +234,20 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             return options;
         }
         if (args[0].equalsIgnoreCase("add")) {
-            // Подсказки для ключевых слов money, for
+            // Подсказываем money и for
             if (args.length >= 2) {
-                // Проверяем, не ввели ли мы уже for
                 boolean hasFor = false;
                 for (String arg : args) {
                     if (arg.equalsIgnoreCase("for")) hasFor = true;
                 }
                 if (hasFor) {
-                    // Если уже есть for, подсказываем имена игроков
                     String lastArg = args[args.length - 1];
                     return Bukkit.getOnlinePlayers().stream()
                             .map(Player::getName)
                             .filter(n -> n.toLowerCase(Locale.ROOT).startsWith(lastArg.toLowerCase(Locale.ROOT)))
                             .collect(Collectors.toList());
                 }
-                // Иначе предлагаем money и for
+                // Предлагаем money и for
                 List<String> hints = new ArrayList<>();
                 if (!args[args.length - 1].equalsIgnoreCase("money") && !args[args.length - 1].equalsIgnoreCase("for")) {
                     hints.add("money");

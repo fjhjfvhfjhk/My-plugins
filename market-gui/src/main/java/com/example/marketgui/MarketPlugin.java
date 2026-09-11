@@ -2,9 +2,6 @@ package com.example.marketgui;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
-/**
- * MarketGUI — магазин с категориями, продавцами и смешанной ценой.
- */
 public final class MarketPlugin extends JavaPlugin {
 
     private ShopManager shopManager;
@@ -14,7 +11,7 @@ public final class MarketPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        saveResource("listings.yml", false);
+        // Убрано saveResource("listings.yml", false) – теперь это делает ShopManager
 
         this.economyManager = new EconomyManager(this);
         this.shopManager = new ShopManager(this);

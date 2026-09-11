@@ -15,10 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID; // <-- добавлен импорт
 
-/**
- * GUI магазина: категории, товары, меню продавца.
- */
 public class ShopGUI implements Listener {
 
     private static final String MAIN_TITLE = "§6Рынок сервера";
@@ -59,19 +57,19 @@ public class ShopGUI implements Listener {
     }
 
     public void openCategory(Player player, String categoryName) {
-        List<ShopManager.Listing> listings = shopManager.getListingsByCategory(categoryName);
-        // Фильтруем: если товар предназначен конкретному игроку, показываем только ему
-        List<ShopManager.Listing> filtered = new ArrayList<>();
-        for (ShopManager.Listing listing : listings) {
-            if (listing.getTargetPlayer() == null || listing.getTargetPlayer().equals(player.getUniqueId())) {
-                filtered.add(listing);
+        List<ShopManager.Listing> allListings = shopManager.getListingsByCategory(categoryName);
+        List<ShopManager.Listing> listings = new ArrayList<>();
+        for (ShopManager.Listing listing : allListings) {
+            UUID target = listing.getTargetPlayer();
+            if (target == null || target.equals(player.getUniqueId())) {
+                listings.add(listing);
             }
         }
 
         Inventory inv = Bukkit.createInventory(null, 54, CATEGORY_PREFIX + categoryName);
 
-        for (int i = 0; i < Math.min(filtered.size(), 45); i++) {
-            ShopManager.Listing listing = filtered.get(i);
+        for (int i = 0; i < Math.min(listings.size(), 45); i++) {
+            ShopManager.Listing listing = listings.get(i);
             ItemStack item = listing.getItemStack();
             ItemMeta meta = item.getItemMeta();
             if (meta != null && !meta.hasDisplayName()) {
@@ -194,10 +192,10 @@ public class ShopGUI implements Listener {
             if (slot >= 0 && slot < 45) {
                 String categoryName = title.substring(CATEGORY_PREFIX.length());
                 List<ShopManager.Listing> listings = shopManager.getListingsByCategory(categoryName);
-                // Фильтруем так же, как при открытии
                 List<ShopManager.Listing> filtered = new ArrayList<>();
                 for (ShopManager.Listing listing : listings) {
-                    if (listing.getTargetPlayer() == null || listing.getTargetPlayer().equals(player.getUniqueId())) {
+                    UUID target = listing.getTargetPlayer();
+                    if (target == null || target.equals(player.getUniqueId())) {
                         filtered.add(listing);
                     }
                 }
@@ -230,13 +228,11 @@ public class ShopGUI implements Listener {
             return;
         }
 
-        // Проверка, что товар предназначен для этого игрока
         if (listing.getTargetPlayer() != null && !listing.getTargetPlayer().equals(buyer.getUniqueId())) {
             buyer.sendMessage("§cЭтот товар предназначен для другого игрока.");
             return;
         }
 
-        // Проверяем предметную цену
         Material priceMaterial = listing.getPriceMaterial();
         int priceAmount = listing.getPriceAmount();
         if (priceMaterial != null && priceAmount > 0) {
@@ -247,7 +243,6 @@ public class ShopGUI implements Listener {
             }
         }
 
-        // Проверяем денежную цену
         double moneyPrice = listing.getMoneyPrice();
         if (moneyPrice > 0) {
             if (!economyManager.isEnabled() || !economyManager.has(buyer, moneyPrice)) {
@@ -256,20 +251,16 @@ public class ShopGUI implements Listener {
             }
         }
 
-        // Снимаем предметную цену
         if (priceMaterial != null && priceAmount > 0) {
             removeItems(buyer, priceMaterial, priceAmount);
         }
 
-        // Снимаем деньги
         if (moneyPrice > 0) {
             economyManager.withdraw(buyer, moneyPrice);
         }
 
-        // Переводим оплату продавцу
         Player seller = plugin.getServer().getPlayer(listing.getSellerUuid());
 
-        // Предметная оплата
         if (priceMaterial != null && priceAmount > 0) {
             if (seller != null && seller.isOnline()) {
                 HashMap<Integer, ItemStack> leftover = seller.getInventory().addItem(new ItemStack(priceMaterial, priceAmount));
@@ -287,13 +278,11 @@ public class ShopGUI implements Listener {
             }
         }
 
-        // Денежная оплата — зачисляем сразу на баланс, офлайн не проблема
         if (moneyPrice > 0) {
             if (seller != null && seller.isOnline()) {
                 economyManager.deposit(seller, moneyPrice);
                 seller.sendMessage("§aВаш товар куплен! Вы получили " + economyManager.format(moneyPrice) + ".");
             } else {
-                // Для офлайн используем Vault deposit по OfflinePlayer
                 try {
                     economyManager.deposit(plugin.getServer().getOfflinePlayer(listing.getSellerUuid()), moneyPrice);
                 } catch (Exception e) {
@@ -303,7 +292,6 @@ public class ShopGUI implements Listener {
             }
         }
 
-        // Отдаём товар покупателю
         ItemStack product = listing.getItemStack();
         HashMap<Integer, ItemStack> leftover = buyer.getInventory().addItem(product);
         if (!leftover.isEmpty()) {
