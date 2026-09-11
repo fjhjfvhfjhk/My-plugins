@@ -1,1 +1,80 @@
 # Конфигурация RollGame
+
+wait-time-seconds: 300
+min-bets: 2
+animation-interval-ticks: 5
+animation-duration-ticks: 60
+commission-percent: 3
+
+# Уведомления о крупных выигрышах (от какой суммы сообщать в чат)
+broadcast-threshold: 50000
+
+sounds:
+  spin-start: ENTITY_PLAYER_LEVELUP
+  spin-end: ENTITY_PLAYER_TOTEM_OF_UNDYING_USE
+  win: UI_TOAST_CHALLENGE_COMPLETE
+  duel-spin: BLOCK_NOTE_BLOCK_PLING
+  duel-win: ENTITY_PLAYER_LEVELUP
+  duel-lose: ENTITY_VILLAGER_NO
+  mines-safe: BLOCK_NOTE_BLOCK_HAT
+  mines-win: UI_TOAST_CHALLENGE_COMPLETE
+  mines-lose: ENTITY_GENERIC_EXPLODE
+  slots-spin: BLOCK_NOTE_BLOCK_PLING
+  slots-stop: BLOCK_NOTE_BLOCK_HAT
+  slots-win: ENTITY_PLAYER_LEVELUP
+  slots-jackpot: UI_TOAST_CHALLENGE_COMPLETE
+  slots-lose: ENTITY_VILLAGER_NO
+  wheel-spin: BLOCK_NOTE_BLOCK_PLING
+  wheel-win: ENTITY_PLAYER_LEVELUP
+  wheel-jackpot: UI_TOAST_CHALLENGE_COMPLETE
+  wheel-lose: ENTITY_VILLAGER_NO
+  stairs-step: BLOCK_NOTE_BLOCK_HAT
+  stairs-fall: ENTITY_GENERIC_EXPLODE
+
+history-limit: 30
+
+min-bet: 0
+max-bet: 0
+duel-commission-percent: 5
+
+mines:
+  min-bet: 0
+  max-bet: 0
+  commission-percent: 5
+
+slots:
+  min-bet: 0
+  max-bet: 0
+  commission-percent: 5
+
+wheel:
+  min-bet: 0
+  max-bet: 0
+  commission-percent: 5
+  animation-ticks: 60
+
+stairs:
+  min-bet: 0
+  max-bet: 0
+  commission-percent: 5
+  fail-chance: 0.12
+
+poker:
+  blind-increase-minutes: 10
+
+messages:
+  bet-placed: "§aИгрок %player% поставил %amount%! Общий банк: %total%."
+  game-started: "§6Игра началась! Первая ставка от %player%."
+  game-cancelled: "§cИгра отменена: недостаточно ставок за %time% секунд. Деньги возвращены."
+  game-won: "§a🎉 Победитель: %player%! Выигрыш: %amount%! 🎉"
+  not-enough-money: "§cНедостаточно денег. Нужно: %need%."
+  already-bet: "§cВы уже сделали ставку в этой игре."
+  game-not-active: "§cИгра не активна."
+  no-bets: "§cНет активных ставок."
+  bet-cancelled: "§cВаша ставка отменена (игра отменена)."
+  admin-cancel: "§cИгра отменена администратором."
+  time-left: "§eОсталось времени: %time% сек."
+  duel-started: "§6Игра 'Дуэль' началась! Ваша ставка: %amount%."
+  duel-win: "§a🎉 Вы выиграли! %amount% x 2 = %win%!"
+  duel-lose: "§cВы проиграли. Потеряно: %amount%."
+  duel-already: "§cВы уже участвуете в дуэли."

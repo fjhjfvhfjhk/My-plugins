@@ -2,19 +2,10 @@ package com.example.roll;
 
 import java.util.*;
 
-/**
- * Состояние покерного стола (Техасский Холдем).
- */
 public class PokerTable {
 
     public enum Stage {
-        WAITING,
-        PREFLOP,
-        FLOP,
-        TURN,
-        RIVER,
-        SHOWDOWN,
-        FINISHED
+        WAITING, PREFLOP, FLOP, TURN, RIVER, SHOWDOWN, FINISHED
     }
 
     public static class Player {
@@ -51,13 +42,9 @@ public class PokerTable {
     public long handStartTime = 0;
     public long turnStartTime = 0;
     public int handNumber = 0;
-
-    // Анимации
     public boolean dealing = false;
-    public int dealtCards = 0;          // сколько карт уже «выдано» при анимации
-    public int revealingIndex = -1;     // какая общая карта сейчас переворачивается (-1 = нет)
-
-    // Для сбора профита раздачи (для истории)
+    public int dealtCards = 0;
+    public int revealingIndex = -1;
     public final Map<UUID, Long> chipsAtHandStart = new HashMap<>();
 
     public PokerTable(int id, long buyIn) {

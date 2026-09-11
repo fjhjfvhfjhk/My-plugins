@@ -95,9 +95,6 @@ public class GameManager {
         return result;
     }
 
-    /**
-     * Новая ставка от игрока (первая ставка или игрок не участвовал).
-     */
     public void addBet(Player player, double amount) {
         if (active && bets.containsKey(player.getUniqueId())) {
             player.sendMessage("§cВы уже сделали ставку. Используйте §f/roll raise <сумма>§c, чтобы увеличить её.");
@@ -156,9 +153,6 @@ public class GameManager {
         RollGUI.updateAllOpen();
     }
 
-    /**
-     * Увеличить свою существующую ставку.
-     */
     public void addToBet(Player player, double amount) {
         if (!active) {
             player.sendMessage("§cИгра не активна. Сделайте первую ставку через §f/roll bet <сумма>§c.");
@@ -207,21 +201,11 @@ public class GameManager {
 
     private List<Material> getItemPool() {
         return List.of(
-                Material.DIAMOND,
-                Material.EMERALD,
-                Material.NETHERITE_INGOT,
-                Material.GOLDEN_APPLE,
-                Material.ENCHANTED_GOLDEN_APPLE,
-                Material.TOTEM_OF_UNDYING,
-                Material.ELYTRA,
-                Material.DRAGON_EGG,
-                Material.NETHER_STAR,
-                Material.BEACON,
-                Material.CONDUIT,
-                Material.HEART_OF_THE_SEA,
-                Material.NAUTILUS_SHELL,
-                Material.SHULKER_SHELL,
-                Material.END_CRYSTAL
+                Material.DIAMOND, Material.EMERALD, Material.NETHERITE_INGOT,
+                Material.GOLDEN_APPLE, Material.ENCHANTED_GOLDEN_APPLE, Material.TOTEM_OF_UNDYING,
+                Material.ELYTRA, Material.DRAGON_EGG, Material.NETHER_STAR, Material.BEACON,
+                Material.CONDUIT, Material.HEART_OF_THE_SEA, Material.NAUTILUS_SHELL,
+                Material.SHULKER_SHELL, Material.END_CRYSTAL
         );
     }
 
@@ -229,9 +213,7 @@ public class GameManager {
         if (timerTask != null) timerTask.cancel();
         timerTask = new BukkitRunnable() {
             @Override
-            public void run() {
-                finishGame();
-            }
+            public void run() { finishGame(); }
         };
         timerTask.runTaskLater(plugin, waitSeconds * 20L);
     }
@@ -242,18 +224,13 @@ public class GameManager {
             int secondsLeft = waitSeconds;
             @Override
             public void run() {
-                if (!active || spinning || frozen || finished) {
-                    this.cancel();
-                    return;
-                }
+                if (!active || spinning || frozen || finished) { this.cancel(); return; }
                 secondsLeft--;
                 if (secondsLeft % 10 == 0 || secondsLeft <= 5) {
                     Bukkit.broadcastMessage(plugin.getConfig().getString("messages.time-left", "§eОсталось времени: %time% сек.")
                             .replace("%time%", String.valueOf(secondsLeft)));
                 }
-                if (secondsLeft <= 0) {
-                    this.cancel();
-                }
+                if (secondsLeft <= 0) this.cancel();
             }
         };
         countdownTask.runTaskTimer(plugin, 20L, 20L);
@@ -262,22 +239,13 @@ public class GameManager {
     public void finishGame() {
         if (!active) return;
         int minBets = plugin.getConfig().getInt("min-bets", 2);
-        if (bets.size() < minBets) {
-            cancelGame(true);
-            return;
-        }
+        if (bets.size() < minBets) { cancelGame(true); return; }
         startSpin();
     }
 
     public void forceFinish(Player player) {
-        if (!active) {
-            player.sendMessage("§cИгра не активна.");
-            return;
-        }
-        if (spinning || frozen || finished) {
-            player.sendMessage("§cИгра уже завершается или завершена.");
-            return;
-        }
+        if (!active) { player.sendMessage("§cИгра не активна."); return; }
+        if (spinning || frozen || finished) { player.sendMessage("§cИгра уже завершается или завершена."); return; }
         UUID uuid = player.getUniqueId();
         if (!uuid.equals(firstBetter) && !player.hasPermission("roll.admin")) {
             player.sendMessage("§cТолько первый поставивший может завершить игру досрочно.");
@@ -295,10 +263,7 @@ public class GameManager {
 
     private void startSpin() {
         winner = selectWinner();
-        if (winner == null) {
-            cancelGame(true);
-            return;
-        }
+        if (winner == null) { cancelGame(true); return; }
 
         buildSpinSequence();
 
@@ -328,14 +293,9 @@ public class GameManager {
         if (!spinSequence.isEmpty() && spinSequence.get(spinSequence.size() - 1).equals(winner)) {
             UUID replacement = null;
             for (UUID p : bets.keySet()) {
-                if (!p.equals(winner)) {
-                    replacement = p;
-                    break;
-                }
+                if (!p.equals(winner)) { replacement = p; break; }
             }
-            if (replacement != null) {
-                spinSequence.set(spinSequence.size() - 1, replacement);
-            }
+            if (replacement != null) spinSequence.set(spinSequence.size() - 1, replacement);
         }
         spinSequence.add(winner);
 
@@ -410,11 +370,7 @@ public class GameManager {
         }
 
         history.addRecord(new RollHistory.GameRecord(
-                System.currentTimeMillis(),
-                winner,
-                total,
-                new HashMap<>(bets)
-        ));
+                System.currentTimeMillis(), winner, total, new HashMap<>(bets)));
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             resetGame();
@@ -438,11 +394,10 @@ public class GameManager {
         try {
             Object sovereignty = Bukkit.getPluginManager().getPlugin("Sovereignty");
             if (sovereignty != null) {
-                Object countryManager = sovereignty.getClass().getMethod("getCountryManager").invoke(sovereignty);
-                String countryName = (String) countryManager.getClass().getMethod("getCountryName", UUID.class).invoke(countryManager, winnerUuid);
+                Object cm = sovereignty.getClass().getMethod("getCountryManager").invoke(sovereignty);
+                String countryName = (String) cm.getClass().getMethod("getCountryName", UUID.class).invoke(cm, winnerUuid);
                 if (countryName != null) {
-                    countryManager.getClass().getMethod("depositToBank", String.class, double.class)
-                            .invoke(countryManager, countryName, amount);
+                    cm.getClass().getMethod("depositToBank", String.class, double.class).invoke(cm, countryName, amount);
                 }
             }
         } catch (Exception ignored) {}
@@ -453,9 +408,7 @@ public class GameManager {
         List<UUID> weightedList = new ArrayList<>();
         for (Map.Entry<UUID, Double> entry : bets.entrySet()) {
             int weight = (int) Math.round(entry.getValue());
-            for (int i = 0; i < weight; i++) {
-                weightedList.add(entry.getKey());
-            }
+            for (int i = 0; i < weight; i++) weightedList.add(entry.getKey());
         }
         if (weightedList.isEmpty()) return null;
         Random rand = new Random();
@@ -485,14 +438,8 @@ public class GameManager {
     }
 
     private void resetGame() {
-        if (timerTask != null) {
-            timerTask.cancel();
-            timerTask = null;
-        }
-        if (countdownTask != null) {
-            countdownTask.cancel();
-            countdownTask = null;
-        }
+        if (timerTask != null) { timerTask.cancel(); timerTask = null; }
+        if (countdownTask != null) { countdownTask.cancel(); countdownTask = null; }
         active = false;
         spinning = false;
         frozen = false;
@@ -570,30 +517,20 @@ public class GameManager {
         currentShift = yaml.getInt("currentShift", 0);
         maxShift = yaml.getInt("maxShift", 0);
         String firstStr = yaml.getString("firstBetter");
-        if (firstStr != null) {
-            try { firstBetter = UUID.fromString(firstStr); } catch (IllegalArgumentException ignored) {}
-        }
+        if (firstStr != null) { try { firstBetter = UUID.fromString(firstStr); } catch (IllegalArgumentException ignored) {} }
         String winnerStr = yaml.getString("winner");
-        if (winnerStr != null) {
-            try { winner = UUID.fromString(winnerStr); } catch (IllegalArgumentException ignored) {}
-        }
+        if (winnerStr != null) { try { winner = UUID.fromString(winnerStr); } catch (IllegalArgumentException ignored) {} }
 
         long elapsed = System.currentTimeMillis() - startTime;
         if (elapsed < waitSeconds * 1000L && !spinning && !frozen) {
             active = true;
             long remaining = waitSeconds * 1000L - elapsed;
             int remainingTicks = (int) (remaining / 50);
-            if (remainingTicks > 0) {
-                startTimer();
-                startCountdown();
-            } else {
-                finishGame();
-            }
+            if (remainingTicks > 0) { startTimer(); startCountdown(); }
+            else finishGame();
         } else if (spinning || frozen) {
             active = true;
-            if (spinSequence.isEmpty() && winner != null) {
-                buildSpinSequence();
-            }
+            if (spinSequence.isEmpty() && winner != null) buildSpinSequence();
         } else {
             finishGame();
         }

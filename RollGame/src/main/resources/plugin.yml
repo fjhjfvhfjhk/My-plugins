@@ -2,24 +2,32 @@ name: RollGame
 version: 2.0.0
 main: com.example.roll.RollPlugin
 api-version: '1.21'
-description: Рулетка с анимацией колеса в GUI
+description: Казино-плагин — рулетка, дуэль, мины, слоты, колесо, лестница, покер
 
 depend: [Vault]
 
 commands:
   roll:
     aliases: [casino]
-    description: Управление рулеткой
+    description: Казино-плагин
     usage: |
-      §c/roll §7- открыть GUI
-      §c/roll bet <сумма> §7- сделать ставку
-      §c/roll info §7- информация об игре
-      §c/roll cancel §7- отменить игру (админ)
+      §c/roll §7- открыть меню казино
+      §c/roll bet <сумма> §7- ставка в классической рулетке
+      §c/roll raise <сумма> §7- увеличить свою ставку
+      §c/roll duel <сумма> §7- дуэль
+      §c/roll mines <ставка> <мины> <размер> §7- мины
+      §c/roll slots <ставка> §7- слоты
+      §c/roll wheel <ставка> §7- колесо фортуны
+      §c/roll stairs <ставка> §7- лестница
+      §c/roll poker §7- покер
+      §c/roll stats §7- статистика
+      §c/roll jackpot §7- размер джекпота
+      §c/roll top §7- топ игроков
 
 permissions:
   roll.use:
-    description: Доступ к рулетке
+    description: Доступ к казино
     default: true
   roll.admin:
-    description: Админ-команды (отмена)
+    description: Админ-команды
     default: op

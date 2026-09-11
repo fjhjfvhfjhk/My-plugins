@@ -40,8 +40,6 @@ public class RollData {
         load();
     }
 
-    // ==================== Сохранение / загрузка ====================
-
     private void load() {
         if (!dataFile.exists()) return;
         this.data = YamlConfiguration.loadConfiguration(dataFile);
@@ -116,8 +114,6 @@ public class RollData {
         }
     }
 
-    // ==================== Ставки ====================
-
     public double getLastBet(UUID uuid, String gameKey) {
         Map<String, Double> map = lastBets.get(uuid);
         if (map == null) return 0;
@@ -129,8 +125,6 @@ public class RollData {
         save();
     }
 
-    // ==================== Статистика ====================
-
     public Stats getStats(UUID uuid, String gameKey) {
         return stats.computeIfAbsent(uuid, k -> new HashMap<>())
                 .computeIfAbsent(gameKey, k -> new Stats());
@@ -139,8 +133,6 @@ public class RollData {
     public Map<String, Stats> getAllStats(UUID uuid) {
         return stats.getOrDefault(uuid, Collections.emptyMap());
     }
-
-    // ==================== Джекпот ====================
 
     public long getJackpot() { return jackpot; }
 
@@ -158,23 +150,13 @@ public class RollData {
         return ThreadLocalRandom.current().nextDouble() < 0.001;
     }
 
-    // ==================== Запись результата ====================
-
-    /**
-     * Записывает результат игры, обновляет статистику, джекпот-банк,
-     * делает рассылку и вызывает визуальные эффекты при победе.
-     */
     public void recordResult(Player player, String gameKey, double bet, double payout, boolean win) {
         if (player == null) return;
         UUID uuid = player.getUniqueId();
-
-        // Имя игры — считаем один раз в начале
         String gameName = gameNameOf(gameKey);
 
-        // 1) Последняя ставка
         setLastBet(uuid, gameKey, bet);
 
-        // 2) Статистика
         Stats s = getStats(uuid, gameKey);
         s.gamesPlayed++;
         s.totalBet += bet;
@@ -184,18 +166,15 @@ public class RollData {
             if (payout > s.biggestWin) s.biggestWin = payout;
         }
 
-        // 3) Отчисление в джекпот (1% от ставки)
         double jackpotFee = bet * 0.01;
         jackpot += (long) jackpotFee;
 
-        // 4) Уведомление о крупном выигрыше
         long broadcastThreshold = plugin.getConfig().getLong("broadcast-threshold", 50000);
         if (win && payout >= broadcastThreshold) {
             Bukkit.broadcastMessage("§6§l🎉 " + player.getName() + " сорвал куш в " +
                     gameName + "§6§l: +" + plugin.getEconomyManager().format(payout) + "!");
         }
 
-        // 5) Триггер джекпота
         if (win && jackpot > 0 && tryJackpot()) {
             long pot = jackpot;
             jackpot = 0;
@@ -211,7 +190,6 @@ public class RollData {
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         }
 
-        // 6) Визуальные эффекты при победе
         if (win) {
             spawnWinParticles(player, payout);
         }
@@ -219,7 +197,6 @@ public class RollData {
         save();
     }
 
-    /** Огненный взрыв вокруг игрока. */
     private void spawnWinParticles(Player player, double payout) {
         World world = player.getWorld();
         double x = player.getLocation().getX();
@@ -243,8 +220,6 @@ public class RollData {
         }
         return gameKey;
     }
-
-    // ==================== Вспомогательный класс ====================
 
     public static class Stats {
         public int gamesPlayed = 0;

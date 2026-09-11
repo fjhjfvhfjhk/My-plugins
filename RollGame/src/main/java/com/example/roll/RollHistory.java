@@ -1,6 +1,5 @@
 package com.example.roll;
 
-import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
@@ -67,7 +66,6 @@ public class RollHistory {
                 records.add(new GameRecord(timestamp, winner, totalPot, bets));
             } catch (Exception ignored) {}
         }
-        // Сортируем по убыванию времени
         records.sort((a, b) -> Long.compare(b.timestamp, a.timestamp));
         if (records.size() > maxRecords) {
             records.subList(maxRecords, records.size()).clear();

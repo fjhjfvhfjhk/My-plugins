@@ -9,11 +9,10 @@ public class MinesManager {
     private final RollPlugin plugin;
     private final Map<UUID, MinesGame> games = new HashMap<>();
 
-    public MinesManager(RollPlugin plugin) {
-        this.plugin = plugin;
-    }
+    public MinesManager(RollPlugin plugin) { this.plugin = plugin; }
 
     public MinesGame getGame(UUID uuid) { return games.get(uuid); }
+
     public boolean hasActiveGame(UUID uuid) {
         MinesGame game = games.get(uuid);
         return game != null && !game.gameOver;
@@ -66,7 +65,6 @@ public class MinesManager {
             if (commission > 0) depositCommission(player.getUniqueId(), commission);
             player.sendMessage("§c💥 Вы наткнулись на мину! Потеряно: " + plugin.getEconomyManager().format(game.bet));
             playSound(player, "mines-lose");
-
             plugin.getRollData().recordResult(player, "mines", game.bet, 0, false);
             return false;
         } else {
@@ -102,7 +100,6 @@ public class MinesManager {
 
         game.gameOver = true;
         game.won = true;
-
         plugin.getRollData().recordResult(player, "mines", game.bet, payout, true);
         return true;
     }
@@ -118,9 +115,7 @@ public class MinesManager {
         }
     }
 
-    public void clearGame(UUID uuid) {
-        games.remove(uuid);
-    }
+    public void clearGame(UUID uuid) { games.remove(uuid); }
 
     private void playSound(Player player, String type) {
         String soundName = plugin.getConfig().getString("sounds." + type);
@@ -182,8 +177,6 @@ public class MinesManager {
             return mult;
         }
 
-        public double getPotentialWin() {
-            return bet * getMultiplier();
-        }
+        public double getPotentialWin() { return bet * getMultiplier(); }
     }
 }

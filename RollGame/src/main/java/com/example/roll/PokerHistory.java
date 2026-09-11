@@ -8,9 +8,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * История покерных раздач + недельный лидерборд по прибыли.
- */
 public class PokerHistory {
 
     public static class Record {
@@ -49,9 +46,7 @@ public class PokerHistory {
     private final RollPlugin plugin;
     private final File dataFile;
     private final List<Record> recentRecords = new ArrayList<>();
-    // Профит за последнюю неделю: uuid → (суммарный профит, кол-во раздач)
     private final Map<UUID, PlayerProfit> weeklyProfit = new HashMap<>();
-    private final Map<UUID, String> nameCache = new HashMap<>();
 
     public PokerHistory(RollPlugin plugin) {
         this.plugin = plugin;
@@ -59,7 +54,6 @@ public class PokerHistory {
         load();
     }
 
-    /** Добавляет запись о раздаче и обновляет недельный профит. */
     public void addHand(Record record, Map<UUID, Long> profitsThisHand, Map<UUID, String> names) {
         recentRecords.add(0, record);
         while (recentRecords.size() > 30) recentRecords.remove(recentRecords.size() - 1);
@@ -73,16 +67,13 @@ public class PokerHistory {
             pp.profit += profit;
             pp.handsPlayed++;
         }
-
         save();
     }
 
-    /** Топ игроков по прибыли за неделю. */
     public List<PlayerProfit> getTop(int limit) {
         return weeklyProfit.values().stream()
                 .sorted((a, b) -> Long.compare(b.profit, a.profit))
-                .limit(limit)
-                .collect(Collectors.toList());
+                .limit(limit).collect(Collectors.toList());
     }
 
     public List<Record> getRecent(int count) {
@@ -100,7 +91,6 @@ public class PokerHistory {
                 try {
                     UUID uuid = UUID.fromString(key);
                     long ts = profitSection.getLong(key + ".last-updated", now);
-                    // Игнорируем записи старше недели
                     if (now - ts > WEEK_MS) continue;
                     PlayerProfit pp = new PlayerProfit(uuid, profitSection.getString(key + ".name", "???"));
                     pp.profit = profitSection.getLong(key + ".profit", 0);
@@ -115,7 +105,6 @@ public class PokerHistory {
             for (String key : historySection.getKeys(false)) {
                 try {
                     long ts = historySection.getLong(key + ".timestamp");
-                    // Показываем последние 30 раздач независимо от даты
                     List<String> lines = historySection.getStringList(key + ".lines");
                     String handName = historySection.getString(key + ".hand", "?");
                     long pot = historySection.getLong(key + ".pot", 0);
@@ -134,15 +123,12 @@ public class PokerHistory {
         YamlConfiguration yaml = new YamlConfiguration();
         long now = System.currentTimeMillis();
 
-        // Сохраняем только активные (за неделю) записи
-        int idx = 0;
         for (Map.Entry<UUID, PlayerProfit> e : weeklyProfit.entrySet()) {
             PlayerProfit pp = e.getValue();
             yaml.set("weekly-profit." + pp.uuid + ".name", pp.name);
             yaml.set("weekly-profit." + pp.uuid + ".profit", pp.profit);
             yaml.set("weekly-profit." + pp.uuid + ".hands", pp.handsPlayed);
             yaml.set("weekly-profit." + pp.uuid + ".last-updated", now);
-            idx++;
         }
 
         int i = 0;
@@ -156,10 +142,7 @@ public class PokerHistory {
             yaml.set("recent." + key + ".lines", r.lines);
         }
 
-        try {
-            yaml.save(dataFile);
-        } catch (IOException e) {
-            plugin.getLogger().warning("Не удалось сохранить poker_history.yml: " + e.getMessage());
-        }
+        try { yaml.save(dataFile); }
+        catch (IOException e) { plugin.getLogger().warning("Не удалось сохранить poker_history.yml: " + e.getMessage()); }
     }
 }

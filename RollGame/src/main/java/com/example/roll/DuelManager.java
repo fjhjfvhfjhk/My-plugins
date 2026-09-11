@@ -160,7 +160,6 @@ public class DuelManager {
             playSound("duel-win");
             history.addRecord(new DuelHistory.DuelRecord(
                     System.currentTimeMillis(), player.getUniqueId(), bet, true, resultAmount));
-
             plugin.getRollData().recordResult(player, "duel", bet, resultAmount, true);
         } else {
             double commission = bet * commissionPercent / 100.0;
@@ -170,7 +169,6 @@ public class DuelManager {
             playSound("duel-lose");
             history.addRecord(new DuelHistory.DuelRecord(
                     System.currentTimeMillis(), player.getUniqueId(), bet, false, 0));
-
             plugin.getRollData().recordResult(player, "duel", bet, 0, false);
         }
 

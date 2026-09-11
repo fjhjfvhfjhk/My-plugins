@@ -7,14 +7,11 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Карта и оценка комбинаций для Техасского Холдема.
- */
 public class PokerHand {
 
     public static class Card {
         public final int rank;
-        public final int suit; // 0=♠, 1=♥, 2=♦, 3=♣
+        public final int suit;
 
         public Card(int rank, int suit) {
             this.rank = rank;
@@ -42,21 +39,17 @@ public class PokerHand {
 
         public boolean isRed() { return suit == 1 || suit == 2; }
 
-        /** Отображаемая строка. §c — красный, §f — белый (чёрный невиден на GUI). */
         public String display() {
             return (isRed() ? "§c" : "§f") + suitSymbol() + "§f " + rankName();
         }
 
-        /** Материал для наглядности: красные масти — красная шерсть, чёрные — белая. */
         public ItemStack toItem() {
-            Material mat = isRed() ? Material.RED_DYE : Material.WHITE_DYE;
-            // Можно использовать разные оттенки для масти — так нагляднее
-            switch (suit) {
-                case 0 -> mat = Material.WHITE_DYE;      // ♠
-                case 1 -> mat = Material.RED_DYE;        // ♥
-                case 2 -> mat = Material.ORANGE_DYE;     // ♦ (оранжевый, чтобы отличать от ♥)
-                case 3 -> mat = Material.BLACK_DYE;      // ♣
-            }
+            Material mat = switch (suit) {
+                case 0 -> Material.WHITE_DYE;
+                case 1 -> Material.RED_DYE;
+                case 2 -> Material.ORANGE_DYE;
+                default -> Material.BLACK_DYE;
+            };
             ItemStack item = new ItemStack(mat);
             ItemMeta meta = item.getItemMeta();
             meta.setDisplayName(display());
@@ -77,15 +70,12 @@ public class PokerHand {
             };
         }
 
-        @Override
-        public boolean equals(Object o) {
+        @Override public boolean equals(Object o) {
             if (this == o) return true;
             if (!(o instanceof Card c)) return false;
             return rank == c.rank && suit == c.suit;
         }
-
-        @Override
-        public int hashCode() { return Objects.hash(rank, suit); }
+        @Override public int hashCode() { return Objects.hash(rank, suit); }
     }
 
     public static List<Card> newDeck() {
@@ -107,9 +97,7 @@ public class PokerHand {
         boolean straight = wheel;
         if (!straight) {
             straight = true;
-            for (int i = 1; i < 5; i++) {
-                if (ranks[i] != ranks[i - 1] + 1) { straight = false; break; }
-            }
+            for (int i = 1; i < 5; i++) if (ranks[i] != ranks[i - 1] + 1) { straight = false; break; }
         }
         int straightHigh = wheel ? 5 : r[0];
 
@@ -126,8 +114,7 @@ public class PokerHand {
             return new int[]{8, straightHigh};
         }
         if (groups.get(0)[1] == 4) return new int[]{7, groups.get(0)[0], groups.get(1)[0]};
-        if (groups.get(0)[1] == 3 && groups.get(1)[1] == 2)
-            return new int[]{6, groups.get(0)[0], groups.get(1)[0]};
+        if (groups.get(0)[1] == 3 && groups.get(1)[1] == 2) return new int[]{6, groups.get(0)[0], groups.get(1)[0]};
         if (flush) return new int[]{5, r[0], r[1], r[2], r[3], r[4]};
         if (straight) return new int[]{4, straightHigh};
         if (groups.get(0)[1] == 3) {
@@ -168,9 +155,7 @@ public class PokerHand {
 
     public static int compare(int[] a, int[] b) {
         int n = Math.min(a.length, b.length);
-        for (int i = 0; i < n; i++) {
-            if (a[i] != b[i]) return Integer.compare(a[i], b[i]);
-        }
+        for (int i = 0; i < n; i++) if (a[i] != b[i]) return Integer.compare(a[i], b[i]);
         return Integer.compare(a.length, b.length);
     }
 
