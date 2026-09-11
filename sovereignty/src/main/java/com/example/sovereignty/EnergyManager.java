@@ -49,8 +49,13 @@ public class EnergyManager {
     }
 
     public void save(UUID uuid, PlayerData data) {
-        try (PreparedStatement ps = db.getConnection().prepareStatement(
-                "INSERT OR REPLACE INTO player_data(uuid, energy, max_level, regen_level, last_regen, boost_until, chunk_limit_level, farm_upgrade_level) VALUES(?,?,?,?,?,?,?,?)")) {
+        String sql = "INSERT INTO player_data(uuid, energy, max_level, regen_level, last_regen, boost_until, chunk_limit_level, farm_upgrade_level) " +
+                "VALUES(?,?,?,?,?,?,?,?) " +
+                "ON CONFLICT(uuid) DO UPDATE SET " +
+                "energy=excluded.energy, max_level=excluded.max_level, regen_level=excluded.regen_level, " +
+                "last_regen=excluded.last_regen, boost_until=excluded.boost_until, " +
+                "chunk_limit_level=excluded.chunk_limit_level, farm_upgrade_level=excluded.farm_upgrade_level";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setString(1, uuid.toString());
             ps.setDouble(2, data.energy);
             ps.setInt(3, data.maxLevel);
@@ -127,10 +132,8 @@ public class EnergyManager {
         if (isBoostActive(uuid)) {
             base += plugin.getConfig().getDouble("energy.boost-regen-bonus", 2.0);
         }
-        // Множитель событий
         base *= plugin.getEventManager().getEnergyRegenMultiplier();
 
-        // Технология "Атомная энергия": +2/час
         if (plugin.getScienceManager().isResearched(uuid, "atomic_energy")) {
             base += 2.0;
         }

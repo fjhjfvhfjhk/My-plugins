@@ -195,25 +195,21 @@ public class CountryManager {
         String existingOwner = getChunkOwner(chunk.getWorld(), chunk.getX(), chunk.getZ());
 
         if (existingOwner != null && !existingOwner.equals(countryName)) {
-            // Проверка пакта о ненападении
             if (plugin.getPactManager().hasNonAggressionPact(countryName, existingOwner)) {
                 player.sendMessage("§cВы не можете захватывать чанки страны, с которой у вас пакт о ненападении.");
                 return false;
             }
 
-            // Должны быть врагами
             if (!isEnemy(countryName, existingOwner)) {
                 player.sendMessage("§cВы не в состоянии войны с этой страной.");
                 return false;
             }
 
-            // Нельзя трогать защищённые чанки
             if (plugin.getDefensiveManager().isDefended(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
                 player.sendMessage("§cЭтот чанк защищён! Сначала убейте владельца.");
                 return false;
             }
 
-            // ВАЖНО: Нельзя захватывать чанки, если владелец страны оффлайн
             UUID enemyOwner = getOwner(existingOwner);
             if (enemyOwner != null && Bukkit.getPlayer(enemyOwner) == null) {
                 player.sendMessage("§cВладелец страны сейчас оффлайн — подождите, пока он зайдёт.");

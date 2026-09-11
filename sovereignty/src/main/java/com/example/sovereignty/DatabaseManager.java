@@ -161,7 +161,6 @@ public class DatabaseManager {
             )
         """);
 
-        // НОВАЯ ТАБЛИЦА: персистентный кэш terrain-чанков (как у Xaero)
         stmt.executeUpdate("""
             CREATE TABLE IF NOT EXISTS terrain_cache (
                 world TEXT NOT NULL,
@@ -173,7 +172,6 @@ public class DatabaseManager {
             )
         """);
 
-        // Индекс по last_update для быстрой очистки старых
         stmt.executeUpdate("""
             CREATE INDEX IF NOT EXISTS idx_terrain_last_update
             ON terrain_cache(last_update)

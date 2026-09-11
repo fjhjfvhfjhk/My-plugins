@@ -24,44 +24,27 @@ public class ProtectionListener implements Listener {
         this.countryManager = countryManager;
     }
 
-    /**
-     * Проверяет, имеет ли игрок право взаимодействовать с чанком (строить/ломать).
-     *
-     * Порядок проверок:
-     *  1. Дикая земля — все могут.
-     *  2. Лидер или соправитель владельца — полный доступ.
-     *  3. Союзник (даже если чанк защищённый) — доступ по ally-build.
-     *  4. Владелец чанка оффлайн — полный запрет (защита от обворовывания спящих).
-     *  5. Защищённый чанк (для остальных) — запрет.
-     *  6. Враг — разрешено.
-     *  7. В остальных случаях — запрет.
-     */
     private boolean canBuild(Player player, Chunk chunk) {
         String owner = countryManager.getChunkOwner(chunk.getWorld(), chunk.getX(), chunk.getZ());
         if (owner == null) return true;
 
-        // 1. Лидер / соправитель владеющей страны — полный доступ
         if (countryManager.isLeaderOrCoRuler(player.getUniqueId(), owner)) return true;
 
         String myCountry = countryManager.getCountryName(player.getUniqueId());
 
-        // 2. Союзник — полный доступ, включая защищённые чанки
         if (myCountry != null && countryManager.isAlly(myCountry, owner)) {
             return plugin.getConfig().getBoolean("ally-build", true);
         }
 
-        // 3. Если владелец чанка оффлайн — никто посторонний не может взаимодействовать
         UUID ownerUuid = countryManager.getOwner(owner);
         if (ownerUuid != null && Bukkit.getPlayer(ownerUuid) == null) {
             return false;
         }
 
-        // 4. Защищённый чанк — запрещён всем, кроме союзников (уже отсеяли выше)
         if (plugin.getDefensiveManager().isDefended(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
             return false;
         }
 
-        // 5. Враг — можно
         if (myCountry != null && countryManager.isEnemy(myCountry, owner)) {
             return true;
         }
@@ -77,12 +60,8 @@ public class ProtectionListener implements Listener {
 
         String myCountry = countryManager.getCountryName(player.getUniqueId());
 
-        // Союзник — полный доступ, включая защищённые чанки
-        if (myCountry != null && countryManager.isAlly(myCountry, owner)) {
-            return true;
-        }
+        if (myCountry != null && countryManager.isAlly(myCountry, owner)) return true;
 
-        // Владелец оффлайн — не даём открывать сундуки
         UUID ownerUuid = countryManager.getOwner(owner);
         if (ownerUuid != null && Bukkit.getPlayer(ownerUuid) == null) {
             return false;

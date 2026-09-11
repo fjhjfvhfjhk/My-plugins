@@ -22,7 +22,6 @@ public class DiplomacyGUI implements Listener {
     private final AllianceRequestManager requestManager;
     private final PactRequestManager pactRequestManager;
     private final PeaceRequestManager peaceRequestManager;
-    private final Map<UUID, String> selectedCountry = new HashMap<>();
 
     public DiplomacyGUI(SovereigntyPlugin plugin, CountryManager countryManager,
                         AllianceRequestManager requestManager,
@@ -72,8 +71,6 @@ public class DiplomacyGUI implements Listener {
     private void openActions(Player player, String targetCountry) {
         String myCountry = countryManager.getCountryName(player.getUniqueId());
         if (myCountry == null) return;
-
-        selectedCountry.put(player.getUniqueId(), targetCountry);
 
         Inventory inv = Bukkit.createInventory(null, 45, ACTION_PREFIX + targetCountry);
         fillEmptyWithGlass(inv);
@@ -147,7 +144,6 @@ public class DiplomacyGUI implements Listener {
             if (myCountry == null) return;
             UUID targetOwner = countryManager.getOwner(targetCountry);
 
-            // Проверка дипломатического бана для действий, связанных с дипломатией
             if (slot == 10 || slot == 12 || slot == 13 || slot == 28 || slot == 29 || slot == 30 || slot == 32) {
                 if (countryManager.isDiplomacyBanned(myCountry)) {
                     player.sendMessage("§cВаша дипломатия временно заблокирована санкцией!");
@@ -156,7 +152,6 @@ public class DiplomacyGUI implements Listener {
                 }
             }
 
-            // Проверка пакта о ненападении для объявления войны
             if (slot == 13) {
                 if (plugin.getPactManager().hasNonAggressionPact(myCountry, targetCountry)) {
                     player.sendMessage("§cВы не можете объявить войну, так как у вас действует пакт о ненападении!");

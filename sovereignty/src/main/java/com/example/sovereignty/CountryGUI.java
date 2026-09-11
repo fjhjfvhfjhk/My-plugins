@@ -59,7 +59,6 @@ public class CountryGUI implements Listener {
         double maxEnergy = energyManager.getMaxEnergy(player.getUniqueId());
         double bank = countryManager.getBankBalance(country);
 
-        // Первый ряд (10,12,14,16)
         inv.setItem(10, createButton(Material.GRASS_BLOCK, "§aТерритория",
                 List.of("§7Захват, освобождение, автозахват")));
         inv.setItem(12, createButton(Material.WRITABLE_BOOK, "§aДипломатия",
@@ -71,7 +70,6 @@ public class CountryGUI implements Listener {
                         "§7/country bank deposit <сумма>",
                         "§7/country bank withdraw <сумма>")));
 
-        // Второй ряд (28,30,32,34)
         inv.setItem(28, createButton(Material.GLOWSTONE_DUST, "§aSeechunk",
                 List.of("§7Показать границы чанка частицами")));
         inv.setItem(30, createButton(Material.ENDER_PEARL, "§aUnstuck",
@@ -81,7 +79,6 @@ public class CountryGUI implements Listener {
         inv.setItem(34, createButton(Material.KNOWLEDGE_BOOK, "§eИсследования",
                 List.of("§7Дерево технологий")));
 
-        // Пятый ряд (36,38,40,42,44)
         EventManager eventManager = plugin.getEventManager();
         String eventName = eventManager.getActiveEventName();
         if (eventName != null) {
@@ -93,11 +90,9 @@ public class CountryGUI implements Listener {
                     List.of("§7Сейчас не происходит никаких глобальных событий.")));
         }
 
-        // Кнопка суда (слот 40)
         inv.setItem(40, createButton(Material.BOOKSHELF, "§eМеждународный суд",
                 List.of("§7Жалобы, голосования, санкции")));
 
-        // Третий ряд (46,48,50,52)
         inv.setItem(46, createButton(Material.DIAMOND_PICKAXE, "§aШахтёрский бонус",
                 List.of("§7Спешка за шахтёрские чанки")));
         inv.setItem(47, createButton(Material.CHEST, "§aМагазин",

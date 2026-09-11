@@ -90,14 +90,7 @@ public class ChunkUpgradeManager {
 
     /**
      * Пассивный доход страны от ферм и торговых чанков.
-     *
-     * Формула (исправленная):
-     *   доход ферм = farmCount × (baseIncome + farmLevel × step) × farmMultiplier
-     *   доход торговли = tradeCount × tradeIncome × tradeMultiplier
-     *   бонус торговли = доход ферм × (min(1 + tradeCount × bonusPercent, 2.0) - 1)
-     *
-     * Ограничение бонуса торговли x2 защищает от экспоненциального роста при
-     * большом количестве торговых чанков.
+     * Бонус торговли ограничен x2 сверху, чтобы не было экспоненциального роста.
      */
     public double calculatePassiveIncome(String countryName) {
         UUID ownerUuid = countryManager.getOwner(countryName);
@@ -111,27 +104,18 @@ public class ChunkUpgradeManager {
         int farmCount = countType(countryName, "farm");
         int tradeCount = countType(countryName, "trade");
 
-        // Множители событий
         double farmMultiplier = plugin.getEventManager().getFarmIncomeMultiplier();
         double tradeMultiplier = plugin.getEventManager().getTradeIncomeMultiplier();
 
-        // Технологии
         if (ownerUuid != null) {
             ScienceManager sm = plugin.getScienceManager();
-            if (sm.isResearched(ownerUuid, "farming")) {
-                farmMultiplier *= 1.10;
-            }
-            if (sm.isResearched(ownerUuid, "trade_tech")) {
-                tradeMultiplier *= 1.05;
-            }
+            if (sm.isResearched(ownerUuid, "farming")) farmMultiplier *= 1.10;
+            if (sm.isResearched(ownerUuid, "trade_tech")) tradeMultiplier *= 1.05;
         }
 
-        // Базовый доход ферм
         double farmIncome = farmCount * farmIncomePerChunk * farmMultiplier;
-        // Доход торговли
         double tradeBase = tradeCount * tradeIncome * tradeMultiplier;
 
-        // Бонус торговли к фермам (линейный, максимум +100%)
         double tradeBonus = 0.0;
         if (tradeCount > 0 && farmCount > 0) {
             double bonusMultiplier = Math.min(1.0 + tradeCount * (tradeBonusPercent / 100.0), 2.0);

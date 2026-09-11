@@ -18,9 +18,7 @@ public class TerritoryListener implements Listener {
 
     private final SovereigntyPlugin plugin;
     private final CountryManager countryManager;
-    // Храним последнюю страну игрока (для title)
     private final Map<UUID, String> lastOwner = new HashMap<>();
-    // Храним последний чанк игрока (для actionbar типа)
     private final Map<UUID, String> lastChunk = new HashMap<>();
 
     public TerritoryListener(SovereigntyPlugin plugin, CountryManager countryManager) {
@@ -50,13 +48,11 @@ public class TerritoryListener implements Listener {
         String newOwner = getOwner(to.getWorld(), to.getX(), to.getZ());
         String oldOwner = lastOwner.get(uuid);
 
-        // ActionBar с типом — показывается при каждом переходе на новый чанк
         if (!newChunkKey.equals(lastChunk.get(uuid))) {
             showTypeActionBar(player, to.getWorld(), to.getX(), to.getZ());
             lastChunk.put(uuid, newChunkKey);
         }
 
-        // Title с названием страны — только при пересечении границы страны
         boolean ownerChanged = (oldOwner == null && newOwner != null)
                 || (oldOwner != null && !oldOwner.equals(newOwner));
         if (ownerChanged) {

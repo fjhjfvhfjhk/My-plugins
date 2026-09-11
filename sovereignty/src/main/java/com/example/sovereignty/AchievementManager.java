@@ -12,8 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Достижения: награды за расширение, экономику, дипломатию, энергию и улучшения.
- * Переработаны награды за улучшенные чанки (незерит сокращён).
+ * Достижения с предметными наградами.
  */
 public class AchievementManager {
 
@@ -23,7 +22,6 @@ public class AchievementManager {
     private final EnergyManager energyManager;
     private final ChunkUpgradeManager chunkUpgradeManager;
 
-    // Карта наград для ачивок (предметы)
     private final Map<String, ItemStack> rewards = new HashMap<>();
 
     public AchievementManager(SovereigntyPlugin plugin, DatabaseManager db,
@@ -38,39 +36,27 @@ public class AchievementManager {
     }
 
     private void initRewards() {
-        // Территория
         rewards.put("territory_25", new ItemStack(Material.DIAMOND, 16));
         rewards.put("territory_100", new ItemStack(Material.DIAMOND, 32));
         rewards.put("territory_200", new ItemStack(Material.DIAMOND, 64));
 
-        // Экономика
         rewards.put("economy_50k", new ItemStack(Material.EMERALD, 16));
         rewards.put("economy_500k", new ItemStack(Material.EMERALD, 32));
         rewards.put("economy_1m", new ItemStack(Material.EMERALD, 64));
 
-        // Энергия
         rewards.put("energy_max", new ItemStack(Material.GOLDEN_APPLE, 8));
 
-        // Улучшенные чанки (переработано: меньше незерита, больше алмазов и яблок)
         rewards.put("upgraded_1", new ItemStack(Material.DIAMOND, 8));
         rewards.put("upgraded_10", new ItemStack(Material.DIAMOND, 16));
         rewards.put("upgraded_20", new ItemStack(Material.DIAMOND, 32));
         rewards.put("upgraded_50", new ItemStack(Material.DIAMOND, 64));
 
-        // Максимум всех улучшений
         rewards.put("max_all_upgrades", new ItemStack(Material.TOTEM_OF_UNDYING, 1));
-
-        // Дипломатия
         rewards.put("alliances_5", new ItemStack(Material.TOTEM_OF_UNDYING, 2));
         rewards.put("alliances_10", new ItemStack(Material.TOTEM_OF_UNDYING, 5));
-
-        // Военные пакты
         rewards.put("military_pacts_3", new ItemStack(Material.TOTEM_OF_UNDYING, 3));
     }
 
-    /**
-     * Проверяет все достижения игрока.
-     */
     public void checkAchievements(Player player) {
         UUID uuid = player.getUniqueId();
         String country = countryManager.getCountryName(uuid);
@@ -82,30 +68,23 @@ public class AchievementManager {
         double maxEnergy = energyManager.getMaxEnergy(uuid);
         int upgradedChunks = chunkUpgradeManager.countUpgradedChunks(country);
 
-        // Территория
         checkAndAward(uuid, country, "territory_25", claims >= 25, 5000, 10, rewards.get("territory_25"));
         checkAndAward(uuid, country, "territory_100", claims >= 100, 25000, 25, rewards.get("territory_100"));
         checkAndAward(uuid, country, "territory_200", claims >= 200, 60000, 50, rewards.get("territory_200"));
 
-        // Экономика
         checkAndAward(uuid, country, "economy_50k", bank >= 50000, 10000, 0, rewards.get("economy_50k"));
         checkAndAward(uuid, country, "economy_500k", bank >= 500000, 50000, 0, rewards.get("economy_500k"));
         checkAndAward(uuid, country, "economy_1m", bank >= 1000000, 150000, 0, rewards.get("economy_1m"));
 
-        // Энергия
         checkAndAward(uuid, country, "energy_max", energy >= maxEnergy && maxEnergy >= 10, 3000, 5, rewards.get("energy_max"));
 
-        // Улучшенные чанки
         checkAndAward(uuid, country, "upgraded_1", upgradedChunks >= 1, 1000, 0, rewards.get("upgraded_1"));
         checkAndAward(uuid, country, "upgraded_10", upgradedChunks >= 10, 8000, 5, rewards.get("upgraded_10"));
         checkAndAward(uuid, country, "upgraded_20", upgradedChunks >= 20, 20000, 10, rewards.get("upgraded_20"));
         checkAndAward(uuid, country, "upgraded_50", upgradedChunks >= 50, 50000, 20, rewards.get("upgraded_50"));
 
-        // Улучшения (максимум всех веток)
-        checkAndAward(uuid, country, "max_all_upgrades",
-                isMaxUpgrades(uuid), 100000, 50, rewards.get("max_all_upgrades"));
+        checkAndAward(uuid, country, "max_all_upgrades", isMaxUpgrades(uuid), 100000, 50, rewards.get("max_all_upgrades"));
 
-        // Дипломатия (союзы и военные пакты)
         int alliances = countAlliances(country);
         checkAndAward(uuid, country, "alliances_5", alliances >= 5, 5000, 0, rewards.get("alliances_5"));
         checkAndAward(uuid, country, "alliances_10", alliances >= 10, 15000, 0, rewards.get("alliances_10"));
@@ -160,9 +139,7 @@ public class AchievementManager {
             ps.setString(2, achievementId);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getInt("claimed") == 1;
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        } catch (SQLException e) { e.printStackTrace(); }
         return false;
     }
 
@@ -172,9 +149,7 @@ public class AchievementManager {
             ps.setString(1, uuid.toString());
             ps.setString(2, achievementId);
             ps.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        } catch (SQLException e) { e.printStackTrace(); }
     }
 
     public Map<String, Boolean> getAchievements(UUID uuid) {
@@ -186,9 +161,7 @@ public class AchievementManager {
             while (rs.next()) {
                 result.put(rs.getString("achievement_id"), rs.getInt("claimed") == 1);
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        } catch (SQLException e) { e.printStackTrace(); }
         return result;
     }
 
@@ -234,9 +207,7 @@ public class AchievementManager {
     private int countAlliances(String country) {
         int count = 0;
         for (String other : countryManager.getAllCountries()) {
-            if (!other.equals(country) && countryManager.isAlly(country, other)) {
-                count++;
-            }
+            if (!other.equals(country) && countryManager.isAlly(country, other)) count++;
         }
         return count;
     }
@@ -244,9 +215,7 @@ public class AchievementManager {
     private int countPactsOfType(String country, String type) {
         int count = 0;
         for (String other : countryManager.getAllCountries()) {
-            if (!other.equals(country) && plugin.getPactManager().hasPact(country, other, type)) {
-                count++;
-            }
+            if (!other.equals(country) && plugin.getPactManager().hasPact(country, other, type)) count++;
         }
         return count;
     }

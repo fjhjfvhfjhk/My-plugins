@@ -17,8 +17,8 @@ public class ScienceManager {
     private final Map<UUID, Double> sciencePointsCache = new HashMap<>();
     private final Map<UUID, Integer> scienceLevelCache = new HashMap<>();
     private final Map<UUID, Set<String>> researchedTechCache = new HashMap<>();
+    private final Set<UUID> loadedPlayers = new HashSet<>();
 
-    // Описание технологий: id -> {название, описание, стоимость, зависимость (или null)}
     private final Map<String, String[]> TECHNOLOGIES = new LinkedHashMap<>();
 
     public ScienceManager(SovereigntyPlugin plugin, DatabaseManager db,
@@ -45,8 +45,9 @@ public class ScienceManager {
         return TECHNOLOGIES;
     }
 
-    public void loadPlayer(UUID uuid) {
-        // Загружаем очки и уровень
+    public synchronized void loadPlayer(UUID uuid) {
+        if (loadedPlayers.contains(uuid)) return;
+
         try (PreparedStatement ps = db.getConnection().prepareStatement(
                 "SELECT science_points, science_level FROM player_data WHERE uuid = ?")) {
             ps.setString(1, uuid.toString());
@@ -60,7 +61,6 @@ public class ScienceManager {
             }
         } catch (SQLException e) { e.printStackTrace(); }
 
-        // Загружаем изученные технологии
         Set<String> researched = new HashSet<>();
         try (PreparedStatement ps = db.getConnection().prepareStatement(
                 "SELECT tech_id FROM technologies WHERE uuid = ?")) {
@@ -69,22 +69,39 @@ public class ScienceManager {
             while (rs.next()) researched.add(rs.getString("tech_id"));
         } catch (SQLException e) { e.printStackTrace(); }
         researchedTechCache.put(uuid, researched);
+
+        loadedPlayers.add(uuid);
+    }
+
+    private void ensureLoaded(UUID uuid) {
+        if (!loadedPlayers.contains(uuid)) loadPlayer(uuid);
+    }
+
+    public void unloadPlayer(UUID uuid) {
+        loadedPlayers.remove(uuid);
+        sciencePointsCache.remove(uuid);
+        scienceLevelCache.remove(uuid);
+        researchedTechCache.remove(uuid);
     }
 
     public double getSciencePoints(UUID uuid) {
+        ensureLoaded(uuid);
         return sciencePointsCache.getOrDefault(uuid, 0.0);
     }
 
     public int getScienceLevel(UUID uuid) {
+        ensureLoaded(uuid);
         return scienceLevelCache.getOrDefault(uuid, 0);
     }
 
     public void addSciencePoints(UUID uuid, double amount) {
+        ensureLoaded(uuid);
         sciencePointsCache.merge(uuid, amount, Double::sum);
         savePoints(uuid);
     }
 
     public boolean spendSciencePoints(UUID uuid, double amount) {
+        ensureLoaded(uuid);
         double current = getSciencePoints(uuid);
         if (current < amount) return false;
         sciencePointsCache.put(uuid, current - amount);
@@ -93,6 +110,7 @@ public class ScienceManager {
     }
 
     public boolean isResearched(UUID uuid, String techId) {
+        ensureLoaded(uuid);
         Set<String> set = researchedTechCache.getOrDefault(uuid, Collections.emptySet());
         return set.contains(techId);
     }
@@ -102,7 +120,6 @@ public class ScienceManager {
         if (info == null) return false;
         if (isResearched(uuid, techId)) return false;
 
-        // Проверяем зависимость
         String dependency = info[3];
         if (dependency != null && !isResearched(uuid, dependency)) return false;
 
@@ -115,28 +132,36 @@ public class ScienceManager {
     }
 
     public Set<String> getResearched(UUID uuid) {
+        ensureLoaded(uuid);
         return researchedTechCache.getOrDefault(uuid, new HashSet<>());
     }
 
     private void savePoints(UUID uuid) {
-        try (PreparedStatement ps = db.getConnection().prepareStatement(
-                "UPDATE player_data SET science_points = ?, science_level = ? WHERE uuid = ?")) {
-            ps.setDouble(1, getSciencePoints(uuid));
-            ps.setInt(2, getScienceLevel(uuid));
-            ps.setString(3, uuid.toString());
+        double startEnergy = plugin.getConfig().getDouble("energy.starting-energy", 10.0);
+        long now = System.currentTimeMillis();
+        String sql = "INSERT INTO player_data(uuid, energy, max_level, regen_level, last_regen, boost_until, chunk_limit_level, farm_upgrade_level, science_points, science_level) " +
+                "VALUES(?,?,0,0,?,0,0,0,?,?) " +
+                "ON CONFLICT(uuid) DO UPDATE SET " +
+                "science_points=excluded.science_points, science_level=excluded.science_level";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, uuid.toString());
+            ps.setDouble(2, startEnergy);
+            ps.setLong(3, now);
+            ps.setDouble(4, getSciencePoints(uuid));
+            ps.setInt(5, getScienceLevel(uuid));
             ps.executeUpdate();
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     private void saveTechnologies(UUID uuid) {
         try {
-            // Удаляем старые записи
             try (PreparedStatement del = db.getConnection().prepareStatement(
                     "DELETE FROM technologies WHERE uuid = ?")) {
                 del.setString(1, uuid.toString());
                 del.executeUpdate();
             }
-            // Вставляем текущие
             for (String tech : getResearched(uuid)) {
                 try (PreparedStatement ins = db.getConnection().prepareStatement(
                         "INSERT INTO technologies(uuid, tech_id) VALUES(?,?)")) {
@@ -184,6 +209,7 @@ public class ScienceManager {
 
     public boolean upgradeScience(Player player) {
         UUID uuid = player.getUniqueId();
+        ensureLoaded(uuid);
         int currentLevel = getScienceLevel(uuid);
         int maxLevel = plugin.getConfig().getInt("science.max-level", 10);
         if (currentLevel >= maxLevel) return false;
