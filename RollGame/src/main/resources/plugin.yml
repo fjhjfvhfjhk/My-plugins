@@ -1,0 +1,25 @@
+name: RollGame
+version: 2.0.0
+main: com.example.roll.RollPlugin
+api-version: '1.21'
+description: Рулетка с анимацией колеса в GUI
+
+depend: [Vault]
+
+commands:
+  roll:
+    aliases: [casino]
+    description: Управление рулеткой
+    usage: |
+      §c/roll §7- открыть GUI
+      §c/roll bet <сумма> §7- сделать ставку
+      §c/roll info §7- информация об игре
+      §c/roll cancel §7- отменить игру (админ)
+
+permissions:
+  roll.use:
+    description: Доступ к рулетке
+    default: true
+  roll.admin:
+    description: Админ-команды (отмена)
+    default: op
