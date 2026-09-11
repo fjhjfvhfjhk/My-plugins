@@ -142,7 +142,6 @@ public class CountryManager {
                     ps.setString(2, oldName);
                     ps.executeUpdate();
                 }
-                // Обновляем соправителей (таблица co_rulers)
                 try (PreparedStatement ps = conn.prepareStatement(
                         "UPDATE co_rulers SET country_name=? WHERE country_name=?")) {
                     ps.setString(1, newName);
@@ -201,13 +200,25 @@ public class CountryManager {
                 player.sendMessage("§cВы не можете захватывать чанки страны, с которой у вас пакт о ненападении.");
                 return false;
             }
-            if (!isEnemy(countryName, existingOwner)) return false;
+
+            // Должны быть врагами
+            if (!isEnemy(countryName, existingOwner)) {
+                player.sendMessage("§cВы не в состоянии войны с этой страной.");
+                return false;
+            }
+
+            // Нельзя трогать защищённые чанки
             if (plugin.getDefensiveManager().isDefended(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
                 player.sendMessage("§cЭтот чанк защищён! Сначала убейте владельца.");
                 return false;
             }
+
+            // ВАЖНО: Нельзя захватывать чанки, если владелец страны оффлайн
             UUID enemyOwner = getOwner(existingOwner);
-            if (enemyOwner != null && Bukkit.getPlayer(enemyOwner) == null) return false;
+            if (enemyOwner != null && Bukkit.getPlayer(enemyOwner) == null) {
+                player.sendMessage("§cВладелец страны сейчас оффлайн — подождите, пока он зайдёт.");
+                return false;
+            }
         }
 
         double energyCost = plugin.getConfig().getDouble("claim-energy-cost", 2.0);
@@ -333,7 +344,6 @@ public class CountryManager {
     public void setAlly(String a, String b) { setRelationInternal(a, b, "ally"); }
     public void setEnemy(String a, String b) {
         setRelationInternal(a, b, "enemy");
-        // Удаляем пакт о ненападении при объявлении войны
         plugin.getPactManager().removeNonAggressionPact(a, b);
     }
     public void setNeutral(String a, String b) { setRelationInternal(a, b, "neutral"); }
@@ -511,7 +521,8 @@ public class CountryManager {
         return result;
     }
 
-    // ===== Удаление страны (для completeness, но без GUI) =====
+    // ===== Удаление страны =====
+
     public boolean deleteCountry(String countryName) {
         try (Connection conn = db.getConnection()) {
             conn.setAutoCommit(false);

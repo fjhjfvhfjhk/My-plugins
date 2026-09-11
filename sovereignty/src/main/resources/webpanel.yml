@@ -1,0 +1,29 @@
+# ============================================
+# Веб-панель — отправляет данные и карту на GitHub
+# ============================================
+#
+# Настройка:
+# 1. Создайте PUBLIC репозиторий на GitHub
+# 2. Включите Pages: Settings → Pages → main / root
+# 3. Создайте Fine-grained token с правами Contents: Read and write
+# 4. Заполните поля ниже и перезапустите сервер
+#
+# ============================================
+
+enabled: false
+
+server-name: "Мой полит. сервер"
+interval-minutes: 60
+
+# Порог авто-пуша: если накопилось столько новых отрендеренных чанков,
+# карта и данные отправляются на GitHub немедленно (не дожидаясь interval-minutes).
+# 0 = выключено (только по таймеру).
+auto-push-chunk-threshold: 200
+
+github:
+  owner: "your-username"
+  repo: "my-server-panel"
+  branch: "main"
+  json-path: "data/server1.json"
+  map-path: "data/map.png"
+  token: "ghp_xxxxxxxxxxxxxxxxxxxx"

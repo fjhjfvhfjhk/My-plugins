@@ -1,5 +1,6 @@
 package com.example.sovereignty;
 
+import org.bukkit.Color;
 import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -46,9 +47,12 @@ public class ChunkBorderManager {
         task.runTaskTimer(plugin, 0L, 5L);
         tasks.put(uuid, task);
 
-        player.sendMessage(mode == 1
-                ? "§aРежим: границы каждого чанка страны."
-                : "§aРежим: внешний контур страны.");
+        switch (mode) {
+            case 1 -> player.sendMessage("§aРежим: границы каждого чанка страны (белые).");
+            case 2 -> player.sendMessage("§aРежим: внешний контур страны (белые).");
+            case 3 -> player.sendMessage("§aРежим: типы чанков (цветные границы).");
+            default -> player.sendMessage("§aРежим границ установлен.");
+        }
     }
 
     private void drawBorders(Player player, int mode) {
@@ -64,19 +68,42 @@ public class ChunkBorderManager {
 
         if (mode == 1) {
             for (int i = 0; i < Math.min(chunks.size(), maxDraw); i++) {
-                drawChunkPerimeter(world, chunks.get(i).x, chunks.get(i).z, y, false, null);
+                ChunkPos p = chunks.get(i);
+                Color color = colorForType(p.type);
+                drawChunkPerimeter(world, p.x, p.z, y, false, null, color);
             }
         } else if (mode == 2) {
             Set<String> chunkSet = new HashSet<>();
             for (ChunkPos p : chunks) chunkSet.add(p.x + ":" + p.z);
             for (int i = 0; i < Math.min(chunks.size(), maxDraw); i++) {
                 ChunkPos p = chunks.get(i);
-                drawChunkPerimeter(world, p.x, p.z, y, true, chunkSet);
+                Color color = colorForType(p.type);
+                drawChunkPerimeter(world, p.x, p.z, y, true, chunkSet, color);
+            }
+        } else if (mode == 3) {
+            Set<String> chunkSet = new HashSet<>();
+            for (ChunkPos p : chunks) chunkSet.add(p.x + ":" + p.z);
+            for (int i = 0; i < Math.min(chunks.size(), maxDraw); i++) {
+                ChunkPos p = chunks.get(i);
+                Color color = colorForType(p.type);
+                drawChunkPerimeter(world, p.x, p.z, y, true, chunkSet, color);
             }
         }
     }
 
-    private void drawChunkPerimeter(World world, int chunkX, int chunkZ, double y, boolean onlyExternal, Set<String> chunkSet) {
+    private Color colorForType(String type) {
+        if (type == null) return Color.WHITE;
+        return switch (type) {
+            case "farm" -> Color.fromRGB(0, 200, 0);       // зелёный
+            case "mining" -> Color.fromRGB(0, 170, 255);   // голубой
+            case "military" -> Color.fromRGB(255, 50, 50); // красный
+            case "trade" -> Color.fromRGB(255, 200, 0);    // золотой
+            default -> Color.WHITE;
+        };
+    }
+
+    private void drawChunkPerimeter(World world, int chunkX, int chunkZ, double y,
+                                    boolean onlyExternal, Set<String> chunkSet, Color color) {
         int minX = chunkX * 16;
         int minZ = chunkZ * 16;
         int maxX = minX + 15;
@@ -87,23 +114,16 @@ public class ChunkBorderManager {
         boolean drawWest = !onlyExternal || !hasNeighbor(chunkSet, chunkX - 1, chunkZ);
         boolean drawEast = !onlyExternal || !hasNeighbor(chunkSet, chunkX + 1, chunkZ);
 
-        // Рисуем с шагом 2 блока, но на каждой точке спавним несколько частиц для яркости
-        if (drawNorth) for (int x = minX; x <= maxX; x += 2) spawnBrightParticle(world, x + 0.5, y, minZ + 0.5);
-        if (drawSouth) for (int x = minX; x <= maxX; x += 2) spawnBrightParticle(world, x + 0.5, y, maxZ + 0.5);
-        if (drawWest) for (int z = minZ; z <= maxZ; z += 2) spawnBrightParticle(world, minX + 0.5, y, z + 0.5);
-        if (drawEast) for (int z = minZ; z <= maxZ; z += 2) spawnBrightParticle(world, maxX + 0.5, y, z + 0.5);
+        Particle.DustOptions dust = new Particle.DustOptions(color, 1.2f);
+
+        if (drawNorth) for (int x = minX; x <= maxX; x += 2) spawnParticle(world, x + 0.5, y, minZ + 0.5, dust);
+        if (drawSouth) for (int x = minX; x <= maxX; x += 2) spawnParticle(world, x + 0.5, y, maxZ + 0.5, dust);
+        if (drawWest) for (int z = minZ; z <= maxZ; z += 2) spawnParticle(world, minX + 0.5, y, z + 0.5, dust);
+        if (drawEast) for (int z = minZ; z <= maxZ; z += 2) spawnParticle(world, maxX + 0.5, y, z + 0.5, dust);
     }
 
-    /**
-     * Спавнит несколько частиц с небольшим разбросом, чтобы граница была ярче и толще.
-     */
-    private void spawnBrightParticle(World world, double x, double y, double z) {
-        for (int i = 0; i < 3; i++) {
-            double offsetX = (Math.random() - 0.5) * 0.3;
-            double offsetY = (Math.random() - 0.5) * 0.2;
-            double offsetZ = (Math.random() - 0.5) * 0.3;
-            world.spawnParticle(Particle.FLAME, x + offsetX, y + offsetY, z + offsetZ, 0, 0, 0, 0, 1);
-        }
+    private void spawnParticle(World world, double x, double y, double z, Particle.DustOptions dust) {
+        world.spawnParticle(Particle.DUST, x, y, z, 1, 0, 0, 0, 0, dust);
     }
 
     private boolean hasNeighbor(Set<String> chunkSet, int x, int z) {
@@ -113,10 +133,12 @@ public class ChunkBorderManager {
     private List<ChunkPos> getCountryChunks(String countryName) {
         List<ChunkPos> result = new ArrayList<>();
         try (PreparedStatement ps = plugin.getDatabaseManager().getConnection().prepareStatement(
-                "SELECT chunk_x, chunk_z FROM chunks WHERE country_name = ?")) {
+                "SELECT chunk_x, chunk_z, chunk_type FROM chunks WHERE country_name = ?")) {
             ps.setString(1, countryName);
             ResultSet rs = ps.executeQuery();
-            while (rs.next()) result.add(new ChunkPos(rs.getInt("chunk_x"), rs.getInt("chunk_z")));
+            while (rs.next()) {
+                result.add(new ChunkPos(rs.getInt("chunk_x"), rs.getInt("chunk_z"), rs.getString("chunk_type")));
+            }
         } catch (SQLException e) { e.printStackTrace(); }
         return result;
     }
@@ -124,6 +146,7 @@ public class ChunkBorderManager {
     private static class ChunkPos {
         final int x;
         final int z;
-        ChunkPos(int x, int z) { this.x = x; this.z = z; }
+        final String type;
+        ChunkPos(int x, int z, String type) { this.x = x; this.z = z; this.type = type; }
     }
 }

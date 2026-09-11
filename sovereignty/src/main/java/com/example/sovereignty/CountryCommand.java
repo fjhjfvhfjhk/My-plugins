@@ -3,7 +3,6 @@ package com.example.sovereignty;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -49,8 +48,12 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 plugin.reloadConfig();
-                player.sendMessage("§aКонфигурация Sovereignty перезагружена.");
+                plugin.getWebPanelUploader().loadConfig();
+                player.sendMessage("§aКонфигурация Sovereignty и веб-панели перезагружена.");
                 return true;
+            }
+            case "panel" -> {
+                return panelCommand(player, args);
             }
             case "create" -> {
                 if (args.length < 2) {
@@ -107,7 +110,6 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
 
-                // Проверка пакта о ненападении для объявления войны
                 if (args[0].equalsIgnoreCase("enemy")) {
                     if (plugin.getPactManager().hasNonAggressionPact(my, their)) {
                         player.sendMessage("§cВы не можете объявить войну, так как у вас действует пакт о ненападении!");
@@ -130,10 +132,7 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
             case "upgrade" -> { plugin.getUpgradeGUI().open(player); return true; }
             case "bank" -> {
                 String country = countryManager.getCountryName(player.getUniqueId());
-                if (country == null) {
-                    player.sendMessage("§cСоздайте страну.");
-                    return true;
-                }
+                if (country == null) { player.sendMessage("§cСоздайте страну."); return true; }
                 if (args.length < 2) {
                     double bal = countryManager.getBankBalance(country);
                     player.sendMessage("§7Баланс банка: §f" + economyManager.format(bal));
@@ -141,10 +140,7 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 if (args[1].equalsIgnoreCase("deposit")) {
-                    if (args.length < 3) {
-                        player.sendMessage("§cУкажите сумму.");
-                        return true;
-                    }
+                    if (args.length < 3) { player.sendMessage("§cУкажите сумму."); return true; }
                     double amount;
                     try { amount = Double.parseDouble(args[2]); if (amount <= 0) throw new NumberFormatException(); }
                     catch (NumberFormatException e) { player.sendMessage("§cВведите положительное число."); return true; }
@@ -155,14 +151,8 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
                     plugin.getAchievementManager().checkAchievements(player);
                     return true;
                 } else if (args[1].equalsIgnoreCase("withdraw")) {
-                    if (args.length >= 3 && args[2].equalsIgnoreCase("all")) {
-                        handleWithdrawAll(player);
-                        return true;
-                    }
-                    if (args.length < 3) {
-                        player.sendMessage("§cУкажите сумму или all.");
-                        return true;
-                    }
+                    if (args.length >= 3 && args[2].equalsIgnoreCase("all")) { handleWithdrawAll(player); return true; }
+                    if (args.length < 3) { player.sendMessage("§cУкажите сумму или all."); return true; }
                     double amount;
                     try { amount = Double.parseDouble(args[2]); if (amount <= 0) throw new NumberFormatException(); }
                     catch (NumberFormatException e) { player.sendMessage("§cВведите положительное число."); return true; }
@@ -178,11 +168,8 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
             case "rename" -> { renameCommand(player, args); return true; }
             case "autoclaim" -> {
                 plugin.toggleAutoClaim(player.getUniqueId());
-                if (plugin.isAutoClaimEnabled(player.getUniqueId())) {
-                    player.sendMessage("§aАвтозахват включён.");
-                } else {
-                    player.sendMessage("§cАвтозахват выключен.");
-                }
+                if (plugin.isAutoClaimEnabled(player.getUniqueId())) player.sendMessage("§aАвтозахват включён.");
+                else player.sendMessage("§cАвтозахват выключен.");
                 return true;
             }
             case "unstuck" -> { handleUnstuck(player); return true; }
@@ -190,89 +177,130 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
             case "chunkupgrade" -> { plugin.getChunkUpgradeGUI().open(player); return true; }
             case "miningboost" -> { plugin.getMiningBoostManager().activate(player); return true; }
             case "surrender" -> { plugin.getPactManager().surrender(player); return true; }
-            case "top" -> {
-                String sort = args.length >= 2 ? args[1].toLowerCase() : "claims";
-                plugin.getTopGUI().open(player, sort);
-                return true;
-            }
+            case "top" -> { String sort = args.length >= 2 ? args[1].toLowerCase() : "claims"; plugin.getTopGUI().open(player, sort); return true; }
             case "achievements" -> { showAchievements(player); return true; }
             case "research" -> { plugin.getTechnologyGUI().open(player); return true; }
             case "court" -> { courtCommand(player, args); return true; }
             case "pact" -> { pactCommand(player, args); return true; }
             case "admin" -> { return adminCommand(player, args); }
             case "invite" -> {
-                if (args.length < 2) {
-                    player.sendMessage("§cИспользование: /country invite <игрок>");
-                    return true;
-                }
+                if (args.length < 2) { player.sendMessage("§cИспользование: /country invite <игрок>"); return true; }
                 handleInvite(player, args[1]);
                 return true;
             }
             case "kick" -> {
-                if (args.length < 2) {
-                    player.sendMessage("§cИспользование: /country kick <игрок>");
-                    return true;
-                }
+                if (args.length < 2) { player.sendMessage("§cИспользование: /country kick <игрок>"); return true; }
                 handleKick(player, args[1]);
                 return true;
             }
             case "accept" -> { handleAccept(player); return true; }
             case "decline" -> { handleDecline(player); return true; }
             default -> {
-                player.sendMessage("§cИспользование: /country [reload|create|claim|unclaim|ally|enemy|neutral|map|info|list|buyenergy|boost|upgrade|bank|rename|autoclaim|unstuck|seechunk|chunkupgrade|miningboost|surrender|top|achievements|research|court|pact|invite|kick|accept|decline]");
+                player.sendMessage("§cИспользование: /country [reload|create|claim|unclaim|ally|enemy|neutral|map|info|list|buyenergy|boost|upgrade|bank|rename|autoclaim|unstuck|seechunk|chunkupgrade|miningboost|surrender|top|achievements|research|court|pact|invite|kick|accept|decline|panel]");
                 return true;
             }
         }
     }
 
-    // ========== Вспомогательные методы (существующие) ==========
+    // ==================== АДМИН-КОМАНДА /country panel ====================
+
+    private boolean panelCommand(Player player, String[] args) {
+        if (!player.hasPermission("sovereignty.admin")) {
+            player.sendMessage("§cУ вас нет прав.");
+            return true;
+        }
+        if (args.length < 2) {
+            player.sendMessage("§6=== Управление веб-панелью ===");
+            player.sendMessage("§f/country panel push §7— принудительно отправить данные и карту");
+            player.sendMessage("§f/country panel status §7— статус веб-панели и кэша");
+            player.sendMessage("§f/country panel prerender <радиус> §7— прогрузить чанки вокруг всех стран");
+            player.sendMessage("§f/country panel prerender cancel §7— отменить прогрузку");
+            return true;
+        }
+
+        switch (args[1].toLowerCase(Locale.ROOT)) {
+            case "push" -> {
+                if (!plugin.getWebPanelUploader().isEnabled()) {
+                    player.sendMessage("§cВеб-панель отключена. Настройте webpanel.yml.");
+                    return true;
+                }
+                player.sendMessage("§eОтправляю данные и карту на GitHub...");
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                    plugin.getWebPanelUploader().push();
+                    Bukkit.getScheduler().runTask(plugin, () ->
+                            player.sendMessage("§aГотово. Проверьте логи сервера."));
+                });
+                return true;
+            }
+            case "status" -> {
+                player.sendMessage("§6=== Статус веб-панели ===");
+                player.sendMessage("§7Веб-панель: " +
+                        (plugin.getWebPanelUploader().isEnabled() ? "§aвключена" : "§cотключена"));
+                player.sendMessage("§7Чанков в terrain-кэше: §f" +
+                        plugin.getTerrainRenderer().getCacheSize());
+                player.sendMessage("§7Новых с последней отправки: §f" +
+                        plugin.getTerrainRenderer().getNewChunksSinceLastPush());
+                player.sendMessage("§7Прогрузка: §f" +
+                        (plugin.getPrerenderManager().isRunning()
+                                ? "идёт (" + plugin.getPrerenderManager().getDone() + "/" +
+                                  plugin.getPrerenderManager().getTotal() + ")"
+                                : "не идёт"));
+                return true;
+            }
+            case "prerender" -> {
+                if (args.length >= 3 && args[2].equalsIgnoreCase("cancel")) {
+                    if (plugin.getPrerenderManager().cancel()) {
+                        player.sendMessage("§aОтмена выполнена.");
+                    } else {
+                        player.sendMessage("§cПрогрузка сейчас не идёт.");
+                    }
+                    return true;
+                }
+                int radius = 5;
+                if (args.length >= 3) {
+                    try {
+                        radius = Integer.parseInt(args[2]);
+                    } catch (NumberFormatException e) {
+                        player.sendMessage("§cРадиус должен быть числом (1-20).");
+                        return true;
+                    }
+                } else {
+                    player.sendMessage("§7Радиус по умолчанию: §f5§7. Использование: §f/country panel prerender <радиус>");
+                }
+                plugin.getPrerenderManager().start(player, radius);
+                return true;
+            }
+            default -> {
+                player.sendMessage("§cНеизвестная подкоманда. /country panel");
+                return true;
+            }
+        }
+    }
 
     private void courtCommand(Player player, String[] args) {
-        if (args.length == 1) {
-            plugin.getCourtGUI().open(player);
-            return;
-        }
+        if (args.length == 1) { plugin.getCourtGUI().open(player); return; }
         if (args[1].equalsIgnoreCase("admin")) {
-            if (!player.hasPermission("sovereignty.court.admin")) {
-                player.sendMessage("§cУ вас нет прав администратора суда.");
-                return;
-            }
-            if (args.length < 4) {
-                player.sendMessage("§cИспользование: /country court admin <close|cancel> <id>");
-                return;
-            }
+            if (!player.hasPermission("sovereignty.court.admin")) { player.sendMessage("§cУ вас нет прав администратора суда."); return; }
+            if (args.length < 4) { player.sendMessage("§cИспользование: /country court admin <close|cancel> <id>"); return; }
             String action = args[2].toLowerCase();
             int caseId;
-            try { caseId = Integer.parseInt(args[3]); } catch (NumberFormatException e) {
-                player.sendMessage("§cID дела должно быть числом.");
-                return;
-            }
+            try { caseId = Integer.parseInt(args[3]); } catch (NumberFormatException e) { player.sendMessage("§cID дела должно быть числом."); return; }
             CourtManager courtManager = plugin.getCourtManager();
             CourtManager.CaseInfo caseInfo = courtManager.getCase(caseId);
-            if (caseInfo == null) {
-                player.sendMessage("§cДело не найдено или уже закрыто.");
-                return;
-            }
+            if (caseInfo == null) { player.sendMessage("§cДело не найдено или уже закрыто."); return; }
             if (action.equalsIgnoreCase("close")) {
                 int totalVoters = courtManager.getTotalVoters(caseId);
                 int minVotes = plugin.getConfig().getInt("court.min-votes", 2);
                 int requiredPercent = plugin.getConfig().getInt("court.required-votes-percent", 60);
-                if (totalVoters < minVotes) {
-                    courtManager.closeCase(caseId);
-                    player.sendMessage("§aДело #" + caseId + " закрыто без санкций (мало голосов).");
-                } else {
+                if (totalVoters < minVotes) { courtManager.closeCase(caseId); player.sendMessage("§aДело #" + caseId + " закрыто без санкций (мало голосов)."); }
+                else {
                     Map<String, Integer> sanctionVotes = courtManager.getSanctionVotes(caseId);
                     Set<String> applied = new HashSet<>();
                     for (Map.Entry<String, Integer> entry : sanctionVotes.entrySet()) {
                         if (100.0 * entry.getValue() / totalVoters >= requiredPercent) applied.add(entry.getKey());
                     }
-                    if (applied.isEmpty()) {
-                        courtManager.closeCase(caseId);
-                        player.sendMessage("§aДело #" + caseId + " закрыто: санкции не набрали поддержки.");
-                    } else {
-                        courtManager.applySanctions(caseId, applied);
-                        player.sendMessage("§aСанкции применены: " + String.join(", ", applied));
-                    }
+                    if (applied.isEmpty()) { courtManager.closeCase(caseId); player.sendMessage("§aДело #" + caseId + " закрыто: санкции не набрали поддержки."); }
+                    else { courtManager.applySanctions(caseId, applied); player.sendMessage("§aСанкции применены: " + String.join(", ", applied)); }
                 }
                 return;
             } else if (action.equalsIgnoreCase("cancel")) {
@@ -280,38 +308,25 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage("§aДело #" + caseId + " отменено.");
                 Bukkit.broadcastMessage("§6[Суд] §eДело #" + caseId + " было отменено администратором.");
                 return;
-            } else {
-                player.sendMessage("§cИспользуйте close или cancel.");
-                return;
-            }
+            } else { player.sendMessage("§cИспользуйте close или cancel."); return; }
         }
-
         if (args.length >= 3 && args[1].equalsIgnoreCase("file")) {
             Player defendant = Bukkit.getPlayer(args[2]);
-            if (defendant == null) {
-                player.sendMessage("§cИгрок не в сети.");
-                return;
-            }
+            if (defendant == null) { player.sendMessage("§cИгрок не в сети."); return; }
             String reason = String.join(" ", Arrays.copyOfRange(args, 3, args.length));
             if (reason.isEmpty()) reason = "Без причины";
             int caseId = plugin.getCourtManager().fileComplaint(player.getUniqueId(), defendant.getUniqueId(), reason);
             if (caseId != -1) {
                 player.sendMessage("§aЖалоба подана! Дело #" + caseId);
                 Bukkit.broadcastMessage("§6[Суд] §e" + player.getName() + " подал жалобу на " + defendant.getName() + ". Причина: " + reason);
-            } else {
-                player.sendMessage("§cНе удалось подать жалобу.");
-            }
+            } else { player.sendMessage("§cНе удалось подать жалобу."); }
             return;
         }
-
         player.sendMessage("§cИспользование: /country court [file <ник> <причина>] или /country court admin <close|cancel> <id>");
     }
 
     private void pactCommand(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage("§cИспользование: /country pact <тип> <игрок>");
-            return;
-        }
+        if (args.length < 3) { player.sendMessage("§cИспользование: /country pact <тип> <игрок>"); return; }
         String type = args[1].toLowerCase();
         if (!type.equals("trade") && !type.equals("military") && !type.equals("defense") && !type.equals("nonaggression")) {
             player.sendMessage("§cНеизвестный тип пакта.");
@@ -322,14 +337,8 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
         String my = countryManager.getCountryName(player.getUniqueId());
         String their = countryManager.getCountryName(target.getUniqueId());
         if (my == null || their == null) { player.sendMessage("§cУ обоих должны быть страны."); return; }
-        if (countryManager.isDiplomacyBanned(my)) {
-            player.sendMessage("§cВаша дипломатия временно заблокирована санкцией!");
-            return;
-        }
-        if (plugin.getPactManager().hasPact(my, their, type)) {
-            player.sendMessage("§cВы уже заключили этот пакт!");
-            return;
-        }
+        if (countryManager.isDiplomacyBanned(my)) { player.sendMessage("§cВаша дипломатия временно заблокирована санкцией!"); return; }
+        if (plugin.getPactManager().hasPact(my, their, type)) { player.sendMessage("§cВы уже заключили этот пакт!"); return; }
         plugin.getPactRequestManager().sendRequest(my, their, type);
         player.sendMessage("§aЗапрос пакта отправлен.");
         target.sendMessage("§e" + player.getName() + " (§f" + my + "§e) отправил вам запрос на пакт: " + type);
@@ -355,21 +364,30 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
         var chunk = player.getLocation().getChunk();
         var world = player.getWorld();
         player.sendMessage("§6Карта территорий (§7радиус " + radius + "§6):");
+        player.sendMessage("§7Формат: §fA§7f §7— страна A, тип §af§7(ферма). §7m§7-шахта, §7v§7-воен, §7t§7-торг, §7-§7-обычный");
         for (int dz = radius; dz >= -radius; dz--) {
             StringBuilder sb = new StringBuilder();
             for (int dx = -radius; dx <= radius; dx++) {
                 if (dx == 0 && dz == 0) { sb.append("§e+§r "); continue; }
                 String owner = countryManager.getChunkOwner(world, chunk.getX() + dx, chunk.getZ() + dz);
-                if (owner == null) sb.append("§8-§r ");
-                else {
-                    char letter = Character.toUpperCase(owner.charAt(0));
-                    String color = "§f";
-                    if (owner.equals(my)) color = "§a";
-                    else if (my != null && countryManager.isAlly(my, owner)) color = "§a";
-                    else if (my != null && countryManager.isEnemy(my, owner)) color = "§c";
-                    else color = "§7";
-                    sb.append(color).append(letter).append("§r ");
-                }
+                if (owner == null) { sb.append("§8-§r  "); continue; }
+
+                char letter = Character.toUpperCase(owner.charAt(0));
+                String color;
+                if (owner.equals(my)) color = "§a";
+                else if (my != null && countryManager.isAlly(my, owner)) color = "§a";
+                else if (my != null && countryManager.isEnemy(my, owner)) color = "§c";
+                else color = "§7";
+
+                String type = plugin.getChunkUpgradeManager().getChunkType(world, chunk.getX() + dx, chunk.getZ() + dz);
+                String typeLetter = switch (type) {
+                    case "farm" -> "§af";
+                    case "mining" -> "§bm";
+                    case "military" -> "§cv";
+                    case "trade" -> "§6t";
+                    default -> "§7-";
+                };
+                sb.append(color).append(letter).append(typeLetter).append("§r ");
             }
             player.sendMessage(sb.toString());
         }
@@ -400,7 +418,7 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
         player.sendMessage("§7Энергия: §f" + String.format("%.1f", energy) + " / " + String.format("%.1f", maxEnergy));
         player.sendMessage("§7Реген: §f" + String.format("%.1f", regen) + "/час" + (boost ? " §a(буст активен)" : ""));
         player.sendMessage("§7Банк: §f" + economyManager.format(bank));
-        player.sendMessage("§7Улучшения: §fФерм: " + farm + " §7| Шахт: " + mining + " §7| Воен: " + military + " §7| Торг: " + trade);
+        player.sendMessage("§7Улучшения: §aФерм: " + farm + " §7| §bШахт: " + mining + " §7| §cВоен: " + military + " §7| §6Торг: " + trade);
         player.sendMessage("§7Доход ферм/час: §f" + economyManager.format(farmIncome));
     }
 
@@ -426,17 +444,10 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
             amount = Math.max(1, amount);
         }
         double totalCost = cost * amount;
-        if (!economyManager.has(player, totalCost)) {
-            player.sendMessage("§cНедостаточно денег. Нужно: " + economyManager.format(totalCost));
-            return;
-        }
-        if (!energyManager.addEnergy(player.getUniqueId(), amount)) {
-            player.sendMessage("§cВы уже на максимуме энергии.");
-            return;
-        }
+        if (!economyManager.has(player, totalCost)) { player.sendMessage("§cНедостаточно денег. Нужно: " + economyManager.format(totalCost)); return; }
+        if (!energyManager.addEnergy(player.getUniqueId(), amount)) { player.sendMessage("§cВы уже на максимуме энергии."); return; }
         economyManager.withdraw(player, totalCost);
-        player.sendMessage("§aКуплено энергии: " + String.format("%.1f", amount) +
-                ". Баланс энергии: " + String.format("%.1f", energyManager.getEnergy(player.getUniqueId())));
+        player.sendMessage("§aКуплено энергии: " + String.format("%.1f", amount) + ". Баланс энергии: " + String.format("%.1f", energyManager.getEnergy(player.getUniqueId())));
     }
 
     private void buyBoost(Player player) {
@@ -444,29 +455,21 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
         if (energyManager.buyBoost(player.getUniqueId())) {
             int hours = plugin.getConfig().getInt("energy.boost-duration-hours", 1);
             player.sendMessage("§aБуст регенерации активирован на " + hours + " час(а)!");
-        } else {
-            player.sendMessage("§cНедостаточно денег или ошибка.");
-        }
+        } else { player.sendMessage("§cНедостаточно денег или ошибка."); }
     }
 
     private void renameCommand(Player player, String[] args) {
         if (args.length < 2) { player.sendMessage("§cИспользование: /country rename <новое>"); return; }
         String newName = args[1];
-        if (countryManager.renameCountry(player.getUniqueId(), newName)) {
-            player.sendMessage("§aСтрана переименована в " + newName + "!");
-        } else {
-            player.sendMessage("§cНе удалось переименовать.");
-        }
+        if (countryManager.renameCountry(player.getUniqueId(), newName)) player.sendMessage("§aСтрана переименована в " + newName + "!");
+        else player.sendMessage("§cНе удалось переименовать.");
     }
 
     private void handleUnstuck(Player player) {
         var chunk = player.getLocation().getChunk();
         String owner = countryManager.getChunkOwner(chunk.getWorld(), chunk.getX(), chunk.getZ());
         String myCountry = countryManager.getCountryName(player.getUniqueId());
-        if (owner == null || owner.equals(myCountry)) {
-            player.sendMessage("§cВы не на чужой территории.");
-            return;
-        }
+        if (owner == null || owner.equals(myCountry)) { player.sendMessage("§cВы не на чужой территории."); return; }
         Random random = new Random();
         int offsetX = (random.nextBoolean() ? 1 : -1) * (50 + random.nextInt(51));
         int offsetZ = (random.nextBoolean() ? 1 : -1) * (50 + random.nextInt(51));
@@ -478,10 +481,7 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean adminCommand(Player player, String[] args) {
-        if (!player.hasPermission("sovereignty.admin")) {
-            player.sendMessage("§cУ вас нет прав администратора.");
-            return true;
-        }
+        if (!player.hasPermission("sovereignty.admin")) { player.sendMessage("§cУ вас нет прав администратора."); return true; }
         if (args.length < 4) {
             player.sendMessage("§cИспользование:");
             player.sendMessage("§c/country admin giveenergy <ник> <кол-во>");
@@ -515,46 +515,23 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
             case "removechunk" -> {
                 String targetCountry = countryManager.getCountryName(Bukkit.getOfflinePlayer(args[2]).getUniqueId());
                 if (targetCountry == null) { player.sendMessage("§cУ игрока нет страны."); return true; }
-                if (countryManager.removeRandomChunk(targetCountry)) {
-                    player.sendMessage("§aЧанк страны " + targetCountry + " изъят.");
-                } else {
-                    player.sendMessage("§cНе удалось изъять чанк.");
-                }
+                if (countryManager.removeRandomChunk(targetCountry)) player.sendMessage("§aЧанк страны " + targetCountry + " изъят.");
+                else player.sendMessage("§cНе удалось изъять чанк.");
                 return true;
             }
             default -> { player.sendMessage("§cНеизвестная админ-подкоманда."); return true; }
         }
     }
 
-    // ========== Новые методы для соправителей и withdraw all ==========
-
     private void handleInvite(Player player, String targetName) {
         String country = countryManager.getCountryName(player.getUniqueId());
-        if (country == null) {
-            player.sendMessage("§cУ вас нет страны.");
-            return;
-        }
-        if (!countryManager.isLeader(player.getUniqueId(), country)) {
-            player.sendMessage("§cТолько лидер страны может приглашать соправителей.");
-            return;
-        }
+        if (country == null) { player.sendMessage("§cУ вас нет страны."); return; }
+        if (!countryManager.isLeader(player.getUniqueId(), country)) { player.sendMessage("§cТолько лидер страны может приглашать соправителей."); return; }
         Player target = Bukkit.getPlayer(targetName);
-        if (target == null) {
-            player.sendMessage("§cИгрок не в сети.");
-            return;
-        }
-        if (target.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage("§cНельзя пригласить самого себя.");
-            return;
-        }
-        if (countryManager.getCountryName(target.getUniqueId()) != null) {
-            player.sendMessage("§cЭтот игрок уже имеет свою страну.");
-            return;
-        }
-        if (countryManager.isCoRuler(target.getUniqueId(), country)) {
-            player.sendMessage("§cЭтот игрок уже является соправителем.");
-            return;
-        }
+        if (target == null) { player.sendMessage("§cИгрок не в сети."); return; }
+        if (target.getUniqueId().equals(player.getUniqueId())) { player.sendMessage("§cНельзя пригласить самого себя."); return; }
+        if (countryManager.getCountryName(target.getUniqueId()) != null) { player.sendMessage("§cЭтот игрок уже имеет свою страну."); return; }
+        if (countryManager.isCoRuler(target.getUniqueId(), country)) { player.sendMessage("§cЭтот игрок уже является соправителем."); return; }
         plugin.getInviteManager().sendInvite(player.getUniqueId(), target.getUniqueId(), country);
         player.sendMessage("§aПриглашение отправлено игроку " + target.getName());
         target.sendMessage("§eВас пригласили стать соправителем страны §f" + country + "§e от игрока §f" + player.getName() + "§e.");
@@ -563,109 +540,57 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
 
     private void handleKick(Player player, String targetName) {
         String country = countryManager.getCountryName(player.getUniqueId());
-        if (country == null) {
-            player.sendMessage("§cУ вас нет страны.");
-            return;
-        }
-        if (!countryManager.isLeader(player.getUniqueId(), country)) {
-            player.sendMessage("§cТолько лидер страны может кикать соправителей.");
-            return;
-        }
+        if (country == null) { player.sendMessage("§cУ вас нет страны."); return; }
+        if (!countryManager.isLeader(player.getUniqueId(), country)) { player.sendMessage("§cТолько лидер страны может кикать соправителей."); return; }
         OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
-        if (target == null || target.getName() == null) {
-            player.sendMessage("§cИгрок не найден.");
-            return;
-        }
-        if (target.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage("§cНельзя кикнуть самого себя.");
-            return;
-        }
-        if (!countryManager.isCoRuler(target.getUniqueId(), country)) {
-            player.sendMessage("§cЭтот игрок не является соправителем.");
-            return;
-        }
+        if (target == null || target.getName() == null) { player.sendMessage("§cИгрок не найден."); return; }
+        if (target.getUniqueId().equals(player.getUniqueId())) { player.sendMessage("§cНельзя кикнуть самого себя."); return; }
+        if (!countryManager.isCoRuler(target.getUniqueId(), country)) { player.sendMessage("§cЭтот игрок не является соправителем."); return; }
         countryManager.removeCoRuler(country, target.getUniqueId());
         player.sendMessage("§aСоправитель " + target.getName() + " исключён.");
-        if (target.isOnline() && target.getPlayer() != null) {
-            target.getPlayer().sendMessage("§cВы были исключены из соправителей страны " + country + ".");
-        }
+        if (target.isOnline() && target.getPlayer() != null) target.getPlayer().sendMessage("§cВы были исключены из соправителей страны " + country + ".");
     }
 
     private void handleAccept(Player player) {
         InviteManager.Invite invite = plugin.getInviteManager().getInvite(player.getUniqueId());
-        if (invite == null) {
-            player.sendMessage("§cУ вас нет активных приглашений.");
-            return;
-        }
+        if (invite == null) { player.sendMessage("§cУ вас нет активных приглашений."); return; }
         String country = invite.countryName;
-        if (!countryManager.countryExists(country)) {
-            player.sendMessage("§cСтрана больше не существует.");
-            plugin.getInviteManager().removeInvite(player.getUniqueId());
-            return;
-        }
-        if (countryManager.getCountryName(player.getUniqueId()) != null) {
-            player.sendMessage("§cУ вас уже есть своя страна.");
-            plugin.getInviteManager().removeInvite(player.getUniqueId());
-            return;
-        }
-        if (countryManager.isCoRuler(player.getUniqueId(), country)) {
-            player.sendMessage("§cВы уже соправитель.");
-            plugin.getInviteManager().removeInvite(player.getUniqueId());
-            return;
-        }
+        if (!countryManager.countryExists(country)) { player.sendMessage("§cСтрана больше не существует."); plugin.getInviteManager().removeInvite(player.getUniqueId()); return; }
+        if (countryManager.getCountryName(player.getUniqueId()) != null) { player.sendMessage("§cУ вас уже есть своя страна."); plugin.getInviteManager().removeInvite(player.getUniqueId()); return; }
+        if (countryManager.isCoRuler(player.getUniqueId(), country)) { player.sendMessage("§cВы уже соправитель."); plugin.getInviteManager().removeInvite(player.getUniqueId()); return; }
         countryManager.addCoRuler(country, player.getUniqueId());
         plugin.getInviteManager().removeInvite(player.getUniqueId());
         player.sendMessage("§aВы стали соправителем страны " + country + "!");
         Player inviter = Bukkit.getPlayer(invite.from);
-        if (inviter != null) {
-            inviter.sendMessage("§aИгрок " + player.getName() + " принял приглашение и стал соправителем.");
-        }
+        if (inviter != null) inviter.sendMessage("§aИгрок " + player.getName() + " принял приглашение и стал соправителем.");
     }
 
     private void handleDecline(Player player) {
         InviteManager.Invite invite = plugin.getInviteManager().getInvite(player.getUniqueId());
-        if (invite == null) {
-            player.sendMessage("§cУ вас нет активных приглашений.");
-            return;
-        }
+        if (invite == null) { player.sendMessage("§cУ вас нет активных приглашений."); return; }
         plugin.getInviteManager().removeInvite(player.getUniqueId());
         player.sendMessage("§cВы отклонили приглашение.");
         Player inviter = Bukkit.getPlayer(invite.from);
-        if (inviter != null) {
-            inviter.sendMessage("§cИгрок " + player.getName() + " отклонил приглашение.");
-        }
+        if (inviter != null) inviter.sendMessage("§cИгрок " + player.getName() + " отклонил приглашение.");
     }
 
     private void handleWithdrawAll(Player player) {
         String country = countryManager.getCountryName(player.getUniqueId());
-        if (country == null) {
-            player.sendMessage("§cУ вас нет страны.");
-            return;
-        }
-        if (!countryManager.isLeaderOrCoRuler(player.getUniqueId(), country)) {
-            player.sendMessage("§cВы не имеете права управлять банком.");
-            return;
-        }
+        if (country == null) { player.sendMessage("§cУ вас нет страны."); return; }
+        if (!countryManager.isLeaderOrCoRuler(player.getUniqueId(), country)) { player.sendMessage("§cВы не имеете права управлять банком."); return; }
         double amount = countryManager.withdrawAllFromBank(country);
-        if (amount <= 0) {
-            player.sendMessage("§cВ банке нет средств.");
-            return;
-        }
+        if (amount <= 0) { player.sendMessage("§cВ банке нет средств."); return; }
         economyManager.deposit(player, amount);
         player.sendMessage("§aВы сняли все средства из банка: " + economyManager.format(amount));
     }
-
-    // ========== Таб-комплит ==========
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             List<String> options = new ArrayList<>(List.of("reload","create","claim","unclaim","ally","enemy","neutral","map","info","list",
                     "buyenergy","boost","upgrade","bank","rename","autoclaim","unstuck","seechunk","chunkupgrade","miningboost","surrender","top",
-                    "achievements","research","court","pact","admin","invite","kick","accept","decline"));
-            return options.stream()
-                    .filter(s -> s.startsWith(args[0].toLowerCase(Locale.ROOT)))
-                    .collect(Collectors.toList());
+                    "achievements","research","court","pact","admin","invite","kick","accept","decline","panel"));
+            return options.stream().filter(s -> s.startsWith(args[0].toLowerCase(Locale.ROOT))).collect(Collectors.toList());
         }
         if (args.length == 2) {
             if (args[0].equalsIgnoreCase("bank")) return List.of("deposit","withdraw");
@@ -674,6 +599,7 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
             if (args[0].equalsIgnoreCase("pact")) return List.of("trade","military","defense","nonaggression");
             if (args[0].equalsIgnoreCase("top")) return List.of("claims","bank","energy");
             if (args[0].equalsIgnoreCase("court")) return List.of("file","admin");
+            if (args[0].equalsIgnoreCase("panel")) return List.of("push","status","prerender");
             if (args[0].equalsIgnoreCase("ally") || args[0].equalsIgnoreCase("enemy") || args[0].equalsIgnoreCase("neutral") ||
                     args[0].equalsIgnoreCase("invite") || args[0].equalsIgnoreCase("kick"))
                 return Bukkit.getOnlinePlayers().stream().map(Player::getName).filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase())).collect(Collectors.toList());
@@ -683,6 +609,9 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("bank") && args[1].equalsIgnoreCase("withdraw")) {
             return List.of("all");
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("panel") && args[1].equalsIgnoreCase("prerender")) {
+            return List.of("5", "10", "15", "cancel");
         }
         return List.of();
     }

@@ -13,7 +13,7 @@ import java.util.UUID;
 
 /**
  * Достижения: награды за расширение, экономику, дипломатию, энергию и улучшения.
- * Теперь с предметными призами.
+ * Переработаны награды за улучшенные чанки (незерит сокращён).
  */
 public class AchievementManager {
 
@@ -51,11 +51,11 @@ public class AchievementManager {
         // Энергия
         rewards.put("energy_max", new ItemStack(Material.GOLDEN_APPLE, 8));
 
-        // Улучшенные чанки
-        rewards.put("upgraded_1", new ItemStack(Material.NETHERITE_INGOT, 1));
-        rewards.put("upgraded_10", new ItemStack(Material.NETHERITE_INGOT, 4));
-        rewards.put("upgraded_20", new ItemStack(Material.NETHERITE_INGOT, 8));
-        rewards.put("upgraded_50", new ItemStack(Material.NETHERITE_INGOT, 16));
+        // Улучшенные чанки (переработано: меньше незерита, больше алмазов и яблок)
+        rewards.put("upgraded_1", new ItemStack(Material.DIAMOND, 8));
+        rewards.put("upgraded_10", new ItemStack(Material.DIAMOND, 16));
+        rewards.put("upgraded_20", new ItemStack(Material.DIAMOND, 32));
+        rewards.put("upgraded_50", new ItemStack(Material.DIAMOND, 64));
 
         // Максимум всех улучшений
         rewards.put("max_all_upgrades", new ItemStack(Material.TOTEM_OF_UNDYING, 1));
@@ -124,7 +124,6 @@ public class AchievementManager {
         if (itemReward != null) {
             Player player = Bukkit.getPlayer(uuid);
             if (player != null) {
-                // Попытка положить в инвентарь, если не влезет – выбросить на землю
                 HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(itemReward.clone());
                 if (!leftover.isEmpty()) {
                     for (ItemStack drop : leftover.values()) {

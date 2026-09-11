@@ -1,5 +1,8 @@
 package com.example.sovereignty;
 
+import com.example.sovereignty.web.PrerenderManager;
+import com.example.sovereignty.web.TerrainRenderer;
+import com.example.sovereignty.web.WebPanelUploader;
 import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -42,12 +45,16 @@ public final class SovereigntyPlugin extends JavaPlugin {
     private InviteManager inviteManager;
     private ManageCountryGUI manageCountryGUI;
     private ConfirmDeleteGUI confirmDeleteGUI;
+    private WebPanelUploader webPanelUploader;
+    private TerrainRenderer terrainRenderer;
+    private PrerenderManager prerenderManager;
 
     private final Set<UUID> autoClaimPlayers = new HashSet<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveResource("webpanel.yml", false);
 
         this.databaseManager = new DatabaseManager(this);
         this.energyManager = new EnergyManager(this, databaseManager);
@@ -69,6 +76,9 @@ public final class SovereigntyPlugin extends JavaPlugin {
         this.inviteManager = new InviteManager();
         this.manageCountryGUI = new ManageCountryGUI(this);
         this.confirmDeleteGUI = new ConfirmDeleteGUI(this);
+        this.terrainRenderer = new TerrainRenderer(this);
+        this.webPanelUploader = new WebPanelUploader(this);
+        this.prerenderManager = new PrerenderManager(this);
 
         if (!economyManager.isEnabled()) {
             getLogger().warning("Vault/экономика не найдены.");
@@ -105,6 +115,7 @@ public final class SovereigntyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(chunkBorderGUI, this);
         getServer().getPluginManager().registerEvents(manageCountryGUI, this);
         getServer().getPluginManager().registerEvents(confirmDeleteGUI, this);
+        getServer().getPluginManager().registerEvents(terrainRenderer, this);
 
         this.protectionListener = new ProtectionListener(this, countryManager);
         getServer().getPluginManager().registerEvents(protectionListener, this);
@@ -139,11 +150,16 @@ public final class SovereigntyPlugin extends JavaPlugin {
             energyManager.tickBoosts();
         }, 1200L, 1200L);
 
-        getLogger().info("Sovereignty v2.9 включён.");
+        webPanelUploader.start();
+
+        getLogger().info("Sovereignty v2.9 включён (с Xaero-style картой и персистентным кэшем).");
     }
 
     @Override
     public void onDisable() {
+        if (prerenderManager != null) prerenderManager.cancel();
+        if (webPanelUploader != null) webPanelUploader.stop();
+        if (terrainRenderer != null) terrainRenderer.shutdown();
         if (energyManager != null) energyManager.saveAll();
         if (scienceManager != null) scienceManager.saveAll();
         if (databaseManager != null) databaseManager.close();
@@ -185,4 +201,7 @@ public final class SovereigntyPlugin extends JavaPlugin {
     public InviteManager getInviteManager() { return inviteManager; }
     public ManageCountryGUI getManageCountryGUI() { return manageCountryGUI; }
     public ConfirmDeleteGUI getConfirmDeleteGUI() { return confirmDeleteGUI; }
+    public WebPanelUploader getWebPanelUploader() { return webPanelUploader; }
+    public TerrainRenderer getTerrainRenderer() { return terrainRenderer; }
+    public PrerenderManager getPrerenderManager() { return prerenderManager; }
 }

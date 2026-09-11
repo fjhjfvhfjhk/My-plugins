@@ -1,5 +1,6 @@
 package com.example.sovereignty;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -11,6 +12,8 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.Inventory;
 
+import java.util.UUID;
+
 public class ProtectionListener implements Listener {
 
     private final SovereigntyPlugin plugin;
@@ -21,21 +24,44 @@ public class ProtectionListener implements Listener {
         this.countryManager = countryManager;
     }
 
+    /**
+     * Проверяет, имеет ли игрок право взаимодействовать с чанком (строить/ломать).
+     *
+     * Порядок проверок:
+     *  1. Дикая земля — все могут.
+     *  2. Лидер или соправитель владельца — полный доступ.
+     *  3. Союзник (даже если чанк защищённый) — доступ по ally-build.
+     *  4. Владелец чанка оффлайн — полный запрет (защита от обворовывания спящих).
+     *  5. Защищённый чанк (для остальных) — запрет.
+     *  6. Враг — разрешено.
+     *  7. В остальных случаях — запрет.
+     */
     private boolean canBuild(Player player, Chunk chunk) {
         String owner = countryManager.getChunkOwner(chunk.getWorld(), chunk.getX(), chunk.getZ());
         if (owner == null) return true;
 
+        // 1. Лидер / соправитель владеющей страны — полный доступ
+        if (countryManager.isLeaderOrCoRuler(player.getUniqueId(), owner)) return true;
+
         String myCountry = countryManager.getCountryName(player.getUniqueId());
-        if (owner.equals(myCountry)) return true;
 
-        if (plugin.getDefensiveManager().isDefended(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
-            return false;
-        }
-
+        // 2. Союзник — полный доступ, включая защищённые чанки
         if (myCountry != null && countryManager.isAlly(myCountry, owner)) {
             return plugin.getConfig().getBoolean("ally-build", true);
         }
 
+        // 3. Если владелец чанка оффлайн — никто посторонний не может взаимодействовать
+        UUID ownerUuid = countryManager.getOwner(owner);
+        if (ownerUuid != null && Bukkit.getPlayer(ownerUuid) == null) {
+            return false;
+        }
+
+        // 4. Защищённый чанк — запрещён всем, кроме союзников (уже отсеяли выше)
+        if (plugin.getDefensiveManager().isDefended(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
+            return false;
+        }
+
+        // 5. Враг — можно
         if (myCountry != null && countryManager.isEnemy(myCountry, owner)) {
             return true;
         }
@@ -47,15 +73,28 @@ public class ProtectionListener implements Listener {
         String owner = countryManager.getChunkOwner(chunk.getWorld(), chunk.getX(), chunk.getZ());
         if (owner == null) return true;
 
+        if (countryManager.isLeaderOrCoRuler(player.getUniqueId(), owner)) return true;
+
         String myCountry = countryManager.getCountryName(player.getUniqueId());
-        if (owner.equals(myCountry)) return true;
+
+        // Союзник — полный доступ, включая защищённые чанки
+        if (myCountry != null && countryManager.isAlly(myCountry, owner)) {
+            return true;
+        }
+
+        // Владелец оффлайн — не даём открывать сундуки
+        UUID ownerUuid = countryManager.getOwner(owner);
+        if (ownerUuid != null && Bukkit.getPlayer(ownerUuid) == null) {
+            return false;
+        }
 
         if (plugin.getDefensiveManager().isDefended(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
             return false;
         }
 
-        if (myCountry != null && countryManager.isAlly(myCountry, owner)) return true;
-        if (myCountry != null && countryManager.isEnemy(myCountry, owner)) return true;
+        if (myCountry != null && countryManager.isEnemy(myCountry, owner)) {
+            return true;
+        }
 
         return false;
     }
@@ -101,7 +140,6 @@ public class ProtectionListener implements Listener {
             String b = countryManager.getCountryName(v.getUniqueId());
             if (a == null || b == null) return;
 
-            // Проверка пакта о ненападении
             if (plugin.getPactManager().hasNonAggressionPact(a, b)) {
                 e.setCancelled(true);
                 p.sendMessage("§cМежду вашими странами действует пакт о ненападении.");
@@ -119,7 +157,6 @@ public class ProtectionListener implements Listener {
                 return;
             }
 
-            // Военная наука: +5% урона по врагам на своей территории
             if (countryManager.isEnemy(a, b)) {
                 Chunk chunk = v.getLocation().getChunk();
                 String chunkOwner = countryManager.getChunkOwner(chunk.getWorld(), chunk.getX(), chunk.getZ());

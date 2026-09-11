@@ -88,10 +88,21 @@ public class ChunkUpgradeManager {
         return plugin.getDefensiveManager().setDefensive(countryName, chunk.getWorld(), chunk.getX(), chunk.getZ(), defensive);
     }
 
+    /**
+     * Пассивный доход страны от ферм и торговых чанков.
+     *
+     * Формула (исправленная):
+     *   доход ферм = farmCount × (baseIncome + farmLevel × step) × farmMultiplier
+     *   доход торговли = tradeCount × tradeIncome × tradeMultiplier
+     *   бонус торговли = доход ферм × (min(1 + tradeCount × bonusPercent, 2.0) - 1)
+     *
+     * Ограничение бонуса торговли x2 защищает от экспоненциального роста при
+     * большом количестве торговых чанков.
+     */
     public double calculatePassiveIncome(String countryName) {
         UUID ownerUuid = countryManager.getOwner(countryName);
         int farmLevel = ownerUuid != null ? plugin.getEnergyManager().getFarmUpgradeLevel(ownerUuid) : 0;
-        double baseFarmIncome = plugin.getConfig().getDouble("chunk-upgrades.farm.income", 100.0);
+        double baseFarmIncome = plugin.getConfig().getDouble("chunk-upgrades.farm.income", 150.0);
         double farmIncomeStep = plugin.getConfig().getDouble("chunk-upgrades.farm.income-step", 100.0);
         double farmIncomePerChunk = baseFarmIncome + farmLevel * farmIncomeStep;
         double tradeIncome = plugin.getConfig().getDouble("chunk-upgrades.trade.income", 50.0);
@@ -115,12 +126,19 @@ public class ChunkUpgradeManager {
             }
         }
 
-        double income = farmCount * farmIncomePerChunk * farmMultiplier;
-        income += tradeCount * tradeIncome * tradeMultiplier;
-        if (tradeCount > 0) {
-            income += farmCount * farmIncomePerChunk * farmMultiplier * (tradeBonusPercent / 100.0) * tradeCount * tradeMultiplier;
+        // Базовый доход ферм
+        double farmIncome = farmCount * farmIncomePerChunk * farmMultiplier;
+        // Доход торговли
+        double tradeBase = tradeCount * tradeIncome * tradeMultiplier;
+
+        // Бонус торговли к фермам (линейный, максимум +100%)
+        double tradeBonus = 0.0;
+        if (tradeCount > 0 && farmCount > 0) {
+            double bonusMultiplier = Math.min(1.0 + tradeCount * (tradeBonusPercent / 100.0), 2.0);
+            tradeBonus = farmIncome * (bonusMultiplier - 1.0);
         }
-        return income;
+
+        return farmIncome + tradeBase + tradeBonus;
     }
 
     public double getTradeBonus(Player player) {

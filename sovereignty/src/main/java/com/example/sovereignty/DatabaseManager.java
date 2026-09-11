@@ -153,13 +153,30 @@ public class DatabaseManager {
             )
         """);
 
-        // Новая таблица для соправителей
         stmt.executeUpdate("""
             CREATE TABLE IF NOT EXISTS co_rulers (
                 country_name TEXT NOT NULL,
                 player_uuid TEXT NOT NULL,
                 PRIMARY KEY (country_name, player_uuid)
             )
+        """);
+
+        // НОВАЯ ТАБЛИЦА: персистентный кэш terrain-чанков (как у Xaero)
+        stmt.executeUpdate("""
+            CREATE TABLE IF NOT EXISTS terrain_cache (
+                world TEXT NOT NULL,
+                chunk_x INTEGER NOT NULL,
+                chunk_z INTEGER NOT NULL,
+                png BLOB NOT NULL,
+                last_update BIGINT NOT NULL,
+                PRIMARY KEY (world, chunk_x, chunk_z)
+            )
+        """);
+
+        // Индекс по last_update для быстрой очистки старых
+        stmt.executeUpdate("""
+            CREATE INDEX IF NOT EXISTS idx_terrain_last_update
+            ON terrain_cache(last_update)
         """);
 
         stmt.close();
@@ -207,7 +224,6 @@ public class DatabaseManager {
                     stmt.executeUpdate("ALTER TABLE court_votes ADD COLUMN sanctions TEXT");
                 }
             }
-            // Проверка на существование таблицы co_rulers не нужна, т.к. она создаётся выше
         } catch (SQLException e) {
             plugin.getLogger().severe("Ошибка миграции базы данных: " + e.getMessage());
             e.printStackTrace();
