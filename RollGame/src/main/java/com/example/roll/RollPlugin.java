@@ -15,6 +15,7 @@ public final class RollPlugin extends JavaPlugin {
     private PokerManager pokerManager;
     private PokerHistory pokerHistory;
     private RollData rollData;
+    private PanelExporter panelExporter;
 
     private RollGUI rollGUI;
     private RollDuelGUI duelGUI;
@@ -56,6 +57,9 @@ public final class RollPlugin extends JavaPlugin {
         this.pokerCardsGUI = new PokerCardsGUI(this);
         this.pokerTablesGUI = new PokerTablesGUI(this);
 
+        // Экспорт на веб-панель Sovereignty
+        this.panelExporter = new PanelExporter(this);
+
         RollCommand command = new RollCommand(this, rollGUI, duelGUI, minesGUI,
                 gamesGUI, slotsGUI, wheelGUI, stairsGUI);
         getCommand("roll").setExecutor(command);
@@ -89,6 +93,7 @@ public final class RollPlugin extends JavaPlugin {
     public void onDisable() {
         if (gameManager != null) gameManager.saveGame();
         if (pokerManager != null) pokerManager.shutdown();
+        if (panelExporter != null) panelExporter.shutdown();
         if (rollData != null) rollData.save();
         getLogger().info("RollGame выключен.");
     }
@@ -104,6 +109,7 @@ public final class RollPlugin extends JavaPlugin {
     public PokerManager getPokerManager() { return pokerManager; }
     public PokerHistory getPokerHistory() { return pokerHistory; }
     public RollData getRollData() { return rollData; }
+    public PanelExporter getPanelExporter() { return panelExporter; }
     public RollGUI getRollGUI() { return rollGUI; }
     public RollDuelGUI getDuelGUI() { return duelGUI; }
     public MinesGUI getMinesGUI() { return minesGUI; }

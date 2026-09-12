@@ -8,14 +8,22 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 
+/**
+ * Колесо Фортуны.
+ *
+ * Изменения (v2.1):
+ *  - пересчитаны множители секторов под RTP ≈ 95.8%;
+ *  - 12 секторов: 5×0x, 2×0.5x, 3×1x, 1×2.5x, 1×5x.
+ */
 public class WheelManager {
 
+    /** Множители 12 секторов колеса. RTP = 11.5/12 ≈ 95.8%. */
     public static final double[] SECTORS = {
-            0.0, 0.0, 0.0, 0.0,
-            0.5, 0.5,
-            1.0, 1.0,
-            1.5, 2.0, 3.0,
-            5.0
+            0.0, 0.0, 0.0, 0.0, 0.0,   // 5× 0x — проигрыш
+            0.5, 0.5,                   // 2× 0.5x — малый возврат
+            1.0, 1.0, 1.0,              // 3× 1x — возврат ставки
+            2.5,                        // 1× 2.5x
+            5.0                         // 1× 5x — джекпот
     };
 
     private final RollPlugin plugin;
@@ -54,6 +62,8 @@ public class WheelManager {
         game.targetIndex = targetIndex;
         game.targetMultiplier = SECTORS[targetIndex];
 
+        // Строим последовательность из случайных секторов + гарантированный target в конце.
+        // maxShift = size - 5, чтобы при "текущем" индексе i=4 сектор совпал с targetIndex.
         int sequenceLength = 96;
         for (int i = 0; i < sequenceLength; i++) game.sequence.add(random.nextInt(SECTORS.length));
         game.sequence.add(targetIndex);
@@ -99,7 +109,7 @@ public class WheelManager {
         double winAmount = game.bet * multiplier;
 
         if (multiplier > 0) {
-            double commissionPercent = plugin.getConfig().getDouble("wheel.commission-percent", 5);
+            double commissionPercent = plugin.getConfig().getDouble("wheel.commission-percent", 0);
             double commission = winAmount * commissionPercent / 100.0;
             double payout = winAmount - commission;
             plugin.getEconomyManager().deposit(player, payout);
@@ -109,7 +119,7 @@ public class WheelManager {
             playSound(player, multiplier >= 3 ? "wheel-jackpot" : "wheel-win");
             plugin.getRollData().recordResult(player, "wheel", game.bet, payout, true);
         } else {
-            double commissionPercent = plugin.getConfig().getDouble("wheel.commission-percent", 5);
+            double commissionPercent = plugin.getConfig().getDouble("wheel.commission-percent", 0);
             double commission = game.bet * commissionPercent / 100.0;
             if (commission > 0) depositCommission(player.getUniqueId(), commission);
             player.sendMessage("§c🎡 Выпало: §40x§c! Вы проиграли §f" +

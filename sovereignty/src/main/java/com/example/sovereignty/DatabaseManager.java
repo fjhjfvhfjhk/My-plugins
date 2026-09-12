@@ -119,6 +119,7 @@ public class DatabaseManager {
             CREATE TABLE IF NOT EXISTS wars (
                 attacker TEXT NOT NULL,
                 defender TEXT NOT NULL,
+                started_at BIGINT NOT NULL DEFAULT 0,
                 PRIMARY KEY (attacker, defender)
             )
         """);
@@ -177,6 +178,20 @@ public class DatabaseManager {
             ON terrain_cache(last_update)
         """);
 
+        // НОВАЯ ТАБЛИЦА: статистика игроков для веб-панели
+        stmt.executeUpdate("""
+            CREATE TABLE IF NOT EXISTS player_stats (
+                uuid TEXT PRIMARY KEY,
+                first_seen BIGINT NOT NULL DEFAULT 0,
+                last_seen BIGINT NOT NULL DEFAULT 0,
+                playtime_seconds BIGINT NOT NULL DEFAULT 0,
+                last_world TEXT,
+                last_x REAL,
+                last_y REAL,
+                last_z REAL
+            )
+        """);
+
         stmt.close();
     }
 
@@ -220,6 +235,11 @@ public class DatabaseManager {
             if (!columnExists("court_votes", "sanctions")) {
                 try (Statement stmt = connection.createStatement()) {
                     stmt.executeUpdate("ALTER TABLE court_votes ADD COLUMN sanctions TEXT");
+                }
+            }
+            if (!columnExists("wars", "started_at")) {
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.executeUpdate("ALTER TABLE wars ADD COLUMN started_at BIGINT NOT NULL DEFAULT 0");
                 }
             }
         } catch (SQLException e) {

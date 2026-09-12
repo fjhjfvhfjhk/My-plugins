@@ -6,16 +6,23 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * GUI покерного стола. Аватарки, анимация карт, свой ход.
+ * GUI покерного стола.
+ * Кнопки действий всегда видны во время betting round — фиксит баг, когда
+ * после раздачи кнопки не появлялись, пока не перезайдёшь в другое окно.
  */
 public class PokerGUI implements Listener {
 
@@ -41,6 +48,9 @@ public class PokerGUI implements Listener {
     private static final int BTN_CARDS = 40;
     private static final int BTN_LEAVE = 42;
 
+    /** Карта: UUID игрока -> открытый инвентарь покера. */
+    private static final Map<UUID, Inventory> openInventories = new HashMap<>();
+
     private final RollPlugin plugin;
 
     public PokerGUI(RollPlugin plugin) {
@@ -48,23 +58,59 @@ public class PokerGUI implements Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
+    /** Публичный API для других классов. */
     public static void open(Player player, PokerTable table) {
         RollPlugin plugin = RollPlugin.getInstance();
         if (plugin == null) return;
         plugin.getPokerGUI().openInternal(player, table);
     }
 
+    /** Перерисовать GUI, не переоткрывая инвентарь (если он открыт). */
+    public void refresh(Player player, PokerTable table) {
+        Inventory inv = openInventories.get(player.getUniqueId());
+        if (inv == null) {
+            // Не открыт — не трогаем.
+            return;
+        }
+        if (!player.isOnline()) {
+            openInventories.remove(player.getUniqueId());
+            return;
+        }
+        // Проверяем, что верхний инвентарь действительно наш.
+        Inventory top = player.getOpenInventory().getTopInventory();
+        if (top == null || !top.equals(inv)) {
+            openInventories.remove(player.getUniqueId());
+            return;
+        }
+        updateInventory(inv, table, player);
+        player.updateInventory();
+    }
+
+    /** Перерисовать GUI у всех игроков за столом. */
+    public static void refreshAll(PokerTable table) {
+        RollPlugin plugin = RollPlugin.getInstance();
+        if (plugin == null) return;
+        PokerGUI gui = plugin.getPokerGUI();
+        if (gui == null) return;
+        for (UUID uuid : table.players.keySet()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) gui.refresh(p, table);
+        }
+    }
+
+    /** Открыть инвентарь. */
     private void openInternal(Player player, PokerTable table) {
         Inventory inv = Bukkit.createInventory(null, 54, TITLE);
         updateInventory(inv, table, player);
         player.openInventory(inv);
+        openInventories.put(player.getUniqueId(), inv);
     }
 
     private void updateInventory(Inventory inv, PokerTable table, Player viewer) {
         inv.clear();
         fillGlass(inv);
 
-        // Информация
+        // ===== Информация =====
         ItemStack info = new ItemStack(Material.OAK_SIGN);
         ItemMeta im = info.getItemMeta();
         im.setDisplayName("§e🃏 Стол #" + table.id);
@@ -85,29 +131,24 @@ public class PokerGUI implements Listener {
         info.setItemMeta(im);
         inv.setItem(SLOT_INFO, info);
 
-        // Банк
+        // ===== Банк =====
         ItemStack pot = new ItemStack(Material.GOLD_BLOCK);
         ItemMeta pm = pot.getItemMeta();
         pm.setDisplayName("§6💰 Банк: §f" + plugin.getEconomyManager().format(table.pot));
         pot.setItemMeta(pm);
         inv.setItem(SLOT_POT, pot);
 
-        // Общие карты
+        // ===== Общие карты =====
         for (int i = 0; i < 5; i++) {
             if (i < table.community.size()) {
                 PokerHand.Card c = table.community.get(i);
-                if (c == null) {
-                    // Рубашка (в процессе переворота)
-                    inv.setItem(COMMUNITY_SLOTS[i], hiddenCard());
-                } else {
-                    inv.setItem(COMMUNITY_SLOTS[i], c.toItem());
-                }
+                inv.setItem(COMMUNITY_SLOTS[i], c == null ? hiddenCard() : c.toItem());
             } else {
                 inv.setItem(COMMUNITY_SLOTS[i], hiddenCard());
             }
         }
 
-        // Игроки с аватарками
+        // ===== Игроки =====
         int idx = 0;
         for (PokerTable.Player p : table.players.values()) {
             if (idx >= SEAT_SLOTS.length) break;
@@ -118,7 +159,8 @@ public class PokerGUI implements Listener {
             List<String> sl = new ArrayList<>();
             sl.add("§7Фишки: §f" + plugin.getEconomyManager().format(p.chips));
             sl.add("§7В банке: §f" + plugin.getEconomyManager().format(p.contributed));
-            if (table.currentTurn != null && table.currentTurn.equals(p.uuid) && !table.dealing) sl.add("§e➤ ходит сейчас");
+            if (table.currentTurn != null && table.currentTurn.equals(p.uuid) && !table.dealing)
+                sl.add("§e➤ ходит сейчас");
             sm.setLore(sl);
             seat.setItemMeta(sm);
             inv.setItem(SEAT_SLOTS[idx], seat);
@@ -128,17 +170,13 @@ public class PokerGUI implements Listener {
         // ===== Свои карты =====
         PokerTable.Player me = table.getPlayer(viewer.getUniqueId());
         if (me != null && me.hole.size() >= 2) {
-            // Анимация: сколько карт уже «выдано» — показываем по нарастающей
-            int cardsVisible = table.dealing ? Math.max(0, table.dealtCards / table.players.size()) : 2;
+            int cardsVisible = table.dealing ? Math.max(0, table.dealtCards / Math.max(1, table.players.size())) : 2;
             cardsVisible = Math.min(2, cardsVisible);
 
             if (cardsVisible >= 1) {
                 ItemStack c1 = me.hole.get(0).toItem();
                 ItemMeta m1 = c1.getItemMeta();
-                List<String> cardLore = new ArrayList<>();
-                cardLore.add("§7Ваша закрытая карта");
-                cardLore.add("§8(видна только вам)");
-                m1.setLore(cardLore);
+                m1.setLore(List.of("§7Ваша закрытая карта", "§8(видна только вам)"));
                 c1.setItemMeta(m1);
                 inv.setItem(SLOT_MY_CARD_1, c1);
             } else {
@@ -148,10 +186,7 @@ public class PokerGUI implements Listener {
             if (cardsVisible >= 2) {
                 ItemStack c2 = me.hole.get(1).toItem();
                 ItemMeta m2 = c2.getItemMeta();
-                List<String> cardLore = new ArrayList<>();
-                cardLore.add("§7Ваша закрытая карта");
-                cardLore.add("§8(видна только вам)");
-                m2.setLore(cardLore);
+                m2.setLore(List.of("§7Ваша закрытая карта", "§8(видна только вам)"));
                 c2.setItemMeta(m2);
                 inv.setItem(SLOT_MY_CARD_2, c2);
             } else {
@@ -162,54 +197,62 @@ public class PokerGUI implements Listener {
             inv.setItem(SLOT_MY_CARD_2, hiddenCard());
         }
 
-        // Кнопки действий
+        // ===== Кнопки действий =====
         boolean inBettingRound = switch (table.stage) {
             case PREFLOP, FLOP, TURN, RIVER -> true;
             default -> false;
         };
 
-        if (inBettingRound && !table.dealing) {
-            boolean myTurn = table.currentTurn != null && table.currentTurn.equals(viewer.getUniqueId());
+        // ВАЖНО: рисуем кнопки даже во время dealing, но помечаем их как неактивные,
+        // чтобы не было "пропадания" после окончания анимации раздачи.
+        if (inBettingRound) {
+            boolean myTurn = !table.dealing
+                    && table.currentTurn != null
+                    && table.currentTurn.equals(viewer.getUniqueId());
             long myChips = me != null ? me.chips : 0;
             long myRoundBet = me != null ? me.roundBet : 0;
             long toCall = table.highestBet - myRoundBet;
 
+            String turnHint = table.dealing
+                    ? "§8Раздача карт..."
+                    : (myTurn ? "§e▶ Нажмите" : "§8Не ваш ход");
+
             inv.setItem(BTN_FOLD, btn(Material.RED_WOOL, "§c❌ Пас",
                     "§7Сбросить карты и выйти из раздачи.",
                     "§7Вложенные деньги в банк не возвращаются.",
-                    "",
-                    myTurn ? "§e▶ Нажмите, чтобы спасовать" : "§8Не ваш ход"));
+                    "", turnHint));
 
             inv.setItem(BTN_CHECK, btn(Material.LIGHT_BLUE_WOOL, "§b✓ Чек",
                     "§7Пропустить ход без ставки.",
                     "§7Доступно, когда никто не повышал.",
-                    "",
-                    myTurn ? "§e▶ Нажмите, чтобы чекнуть" : "§8Не ваш ход"));
+                    "", turnHint));
 
             String callTitle = toCall > 0 ? "§a💰 Колл " + toCall : "§a💰 Колл (0)";
             String callDesc = toCall > 0 ? "§7Поставить §f" + toCall + "§7 монет" : "§7Уже уравнено";
             inv.setItem(BTN_CALL, btn(Material.GREEN_WOOL, callTitle,
-                    "§7Уравнять текущую ставку.",
-                    callDesc,
-                    "",
-                    myTurn ? "§e▶ Нажмите, чтобы уравнять" : "§8Не ваш ход"));
+                    "§7Уравнять текущую ставку.", callDesc,
+                    "", turnHint));
 
             long minRaise = table.highestBet + table.bigBlind;
             long halfPotRaise = Math.max(minRaise, table.highestBet + table.pot / 2);
             long potRaise = Math.max(minRaise, table.highestBet + table.pot);
 
             inv.setItem(BTN_RAISE_MIN, btn(Material.ORANGE_WOOL, "§6⬆ Рейз (мин)",
-                    "§7Повысить ставку до минимума.", "§7Сумма: §f" + minRaise, "",
-                    myTurn ? "§e▶ Нажмите" : "§8Не ваш ход"));
+                    "§7Повысить ставку до минимума.", "§7Сумма: §f" + minRaise, "", turnHint));
             inv.setItem(BTN_RAISE_HALF, btn(Material.ORANGE_WOOL, "§6⬆ Рейз (+½ банка)",
-                    "§7Повысить ставку на половину банка.", "§7Сумма: §f" + halfPotRaise, "",
-                    myTurn ? "§e▶ Нажмите" : "§8Не ваш ход"));
+                    "§7Повысить ставку на половину банка.", "§7Сумма: §f" + halfPotRaise, "", turnHint));
             inv.setItem(BTN_RAISE_POT, btn(Material.ORANGE_WOOL, "§6⬆ Рейз (+банк)",
-                    "§7Повысить ставку на весь банк.", "§7Сумма: §f" + potRaise, "",
-                    myTurn ? "§e▶ Нажмите" : "§8Не ваш ход"));
+                    "§7Повысить ставку на весь банк.", "§7Сумма: §f" + potRaise, "", turnHint));
             inv.setItem(BTN_ALL_IN, btn(Material.NETHERITE_BLOCK, "§4🔥 ВА-БАНК",
-                    "§7Поставить ВСЕ свои фишки.", "§7Ваши фишки: §f" + myChips, "§cЕсли проиграете — вылетите.", "",
-                    myTurn ? "§c▶ Нажмите" : "§8Не ваш ход"));
+                    "§7Поставить ВСЕ свои фишки.", "§7Ваши фишки: §f" + myChips,
+                    "§cЕсли проиграете — вылетите.", "", turnHint));
+        } else {
+            // Вне betting-раунда кнопки действий недоступны.
+            // Их можно оставить пустыми, но лучше зарезервировать место и показать подсказку.
+            if (table.stage == PokerTable.Stage.WAITING) {
+                inv.setItem(BTN_FOLD, btn(Material.GRAY_DYE, "§7Ожидание игроков",
+                        "§7Создатель стола: §f/roll poker start"));
+            }
         }
 
         inv.setItem(BTN_RULES, btn(Material.BOOK, "§e📖 Как играть?",
@@ -243,15 +286,10 @@ public class PokerGUI implements Listener {
         return item;
     }
 
-    /**
-     * Создаёт голову игрока. Если установлен SkinsRestorer, скин подтянется автоматически.
-     */
     private ItemStack createPlayerSkull(PokerTable.Player p) {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         try {
-            // setOwningPlayer в offline-mode работает только со SkinsRestorer,
-            // без него будет стандартная голова.
             meta.setOwningPlayer(Bukkit.getOfflinePlayer(p.uuid));
         } catch (Exception ignored) {}
         head.setItemMeta(meta);
@@ -337,6 +375,20 @@ public class PokerGUI implements Listener {
                 pm.leaveTable(player);
                 player.closeInventory();
             }
+        }
+    }
+
+    @EventHandler
+    public void onInventoryOpen(InventoryOpenEvent event) {
+        if (event.getView().getTitle().equals(TITLE) && event.getPlayer() instanceof Player p) {
+            openInventories.put(p.getUniqueId(), event.getInventory());
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (event.getPlayer() instanceof Player p) {
+            openInventories.remove(p.getUniqueId());
         }
     }
 

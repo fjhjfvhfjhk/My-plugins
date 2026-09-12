@@ -68,6 +68,8 @@ public class PokerHistory {
             pp.handsPlayed++;
         }
         save();
+
+        if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markPokerDirty();
     }
 
     public List<PlayerProfit> getTop(int limit) {

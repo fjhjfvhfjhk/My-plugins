@@ -49,12 +49,24 @@ public final class SovereigntyPlugin extends JavaPlugin {
     private TerrainRenderer terrainRenderer;
     private PrerenderManager prerenderManager;
 
+    private PlayerStatsManager playerStatsManager;
+    private PlayerStatsListener playerStatsListener;
+    private ExternalDataLoader externalDataLoader;
+    private JobsIntegration jobsIntegration;
+
     private final Set<UUID> autoClaimPlayers = new HashSet<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         saveResource("webpanel.yml", false);
+
+        // Копируем шаблон импорта при первом запуске (не перезапишет существующий)
+        try {
+            saveResource("player_stats_import.yml", false);
+        } catch (IllegalArgumentException ignored) {
+            // ресурс не найден — пропускаем
+        }
 
         this.databaseManager = new DatabaseManager(this);
         this.energyManager = new EnergyManager(this, databaseManager);
@@ -79,6 +91,14 @@ public final class SovereigntyPlugin extends JavaPlugin {
         this.terrainRenderer = new TerrainRenderer(this);
         this.webPanelUploader = new WebPanelUploader(this);
         this.prerenderManager = new PrerenderManager(this);
+
+        this.playerStatsManager = new PlayerStatsManager(this, databaseManager);
+        this.playerStatsListener = new PlayerStatsListener(this, playerStatsManager);
+        this.externalDataLoader = new ExternalDataLoader(this);
+        this.jobsIntegration = new JobsIntegration(this);
+
+        // Импорт из player_stats_import.yml (если есть)
+        playerStatsManager.importFromYaml();
 
         if (!economyManager.isEnabled()) {
             getLogger().warning("Vault/экономика не найдены.");
@@ -116,6 +136,7 @@ public final class SovereigntyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(manageCountryGUI, this);
         getServer().getPluginManager().registerEvents(confirmDeleteGUI, this);
         getServer().getPluginManager().registerEvents(terrainRenderer, this);
+        getServer().getPluginManager().registerEvents(playerStatsListener, this);
 
         this.protectionListener = new ProtectionListener(this, countryManager);
         getServer().getPluginManager().registerEvents(protectionListener, this);
@@ -152,7 +173,7 @@ public final class SovereigntyPlugin extends JavaPlugin {
 
         webPanelUploader.start();
 
-        getLogger().info("Sovereignty v2.9 включён (с Xaero-style картой и персистентным кэшем).");
+        getLogger().info("Sovereignty v3.0 включён (с веб-панелью, статистикой игроков и экспортом).");
     }
 
     @Override
@@ -204,4 +225,7 @@ public final class SovereigntyPlugin extends JavaPlugin {
     public WebPanelUploader getWebPanelUploader() { return webPanelUploader; }
     public TerrainRenderer getTerrainRenderer() { return terrainRenderer; }
     public PrerenderManager getPrerenderManager() { return prerenderManager; }
+    public PlayerStatsManager getPlayerStatsManager() { return playerStatsManager; }
+    public ExternalDataLoader getExternalDataLoader() { return externalDataLoader; }
+    public JobsIntegration getJobsIntegration() { return jobsIntegration; }
 }

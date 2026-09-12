@@ -7,7 +7,17 @@ import org.bukkit.entity.Player;
 
 import java.util.*;
 
+/**
+ * Дуэль — игра 50/50 против казино.
+ *
+ * Изменения (v2.1):
+ *  - P(win) = 47.5% (вместо честного 50%) → RTP = 95%;
+ *  - сохранён визуальный изумруд/редстоун.
+ */
 public class DuelManager {
+
+    /** Вероятность выигрыша игрока. RTP = P × 2.0 = 95%. */
+    private static final double WIN_CHANCE = 0.475;
 
     private final RollPlugin plugin;
     private final DuelHistory history;
@@ -87,7 +97,9 @@ public class DuelManager {
     private void startSpin() {
         if (player == null) return;
 
-        win = new Random().nextBoolean();
+        // Реальный исход: P(win) = 47.5%
+        win = new Random().nextDouble() < WIN_CHANCE;
+
         Material winnerMat = win ? Material.EMERALD : Material.REDSTONE;
         Material loserMat = win ? Material.REDSTONE : Material.EMERALD;
 

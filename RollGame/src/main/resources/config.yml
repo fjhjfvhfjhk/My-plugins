@@ -1,4 +1,15 @@
+# ============================================================
 # Конфигурация RollGame
+# ============================================================
+#
+# RTP по мини-играм (Return To Player, целевой диапазон 90-95%):
+#   Слоты      ≈ 94.5%  (2-в-ряд для мелких символов = возврат ставки)
+#   Колесо     ≈ 95.8%  (5×0x, 2×0.5x, 3×1x, 1×2.5x, 1×5x)
+#   Лестница   ≈ 92.4%  (12 ступеней, fail-chance 15% на каждой, включая первую)
+#   Дуэль      = 95.0%  (P(win) = 47.5%)
+#   Мины       ≈ 93.0%  (house edge 7%)
+#   Классика   ≈ 97.0%  (комиссия 3% от банка)
+# ============================================================
 
 wait-time-seconds: 300
 min-bets: 2
@@ -40,24 +51,24 @@ duel-commission-percent: 5
 mines:
   min-bet: 0
   max-bet: 0
-  commission-percent: 5
+  commission-percent: 0   # house edge заложен в множитель (0.93)
 
 slots:
   min-bet: 0
   max-bet: 0
-  commission-percent: 5
+  commission-percent: 0   # RTP уже сбалансирован весами символов
 
 wheel:
   min-bet: 0
   max-bet: 0
-  commission-percent: 5
+  commission-percent: 0   # RTP заложен в секторах
   animation-ticks: 60
 
 stairs:
   min-bet: 0
   max-bet: 0
-  commission-percent: 5
-  fail-chance: 0.12
+  commission-percent: 0   # RTP заложен в множителях
+  fail-chance: 0.15       # 15% на каждой ступени (включая первую)
 
 poker:
   blind-increase-minutes: 10

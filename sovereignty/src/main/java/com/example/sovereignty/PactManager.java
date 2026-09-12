@@ -5,7 +5,6 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.sql.*;
-import java.util.UUID;
 
 public class PactManager {
 
@@ -39,6 +38,7 @@ public class PactManager {
             ps.setString(2, b);
             ps.setString(3, type);
             ps.executeUpdate();
+            if (plugin.getWebPanelUploader() != null) plugin.getWebPanelUploader().scheduleForcePush();
             return true;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
@@ -69,11 +69,13 @@ public class PactManager {
     }
 
     public boolean declareWar(String attacker, String defender) {
-        String sql = "INSERT OR REPLACE INTO wars(attacker, defender) VALUES(?,?)";
+        String sql = "INSERT OR REPLACE INTO wars(attacker, defender, started_at) VALUES(?,?,?)";
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setString(1, attacker);
             ps.setString(2, defender);
+            ps.setLong(3, System.currentTimeMillis());
             ps.executeUpdate();
+            if (plugin.getWebPanelUploader() != null) plugin.getWebPanelUploader().scheduleForcePush();
             return true;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
@@ -153,6 +155,7 @@ public class PactManager {
             ps.setString(3, b);
             ps.setString(4, a);
             ps.executeUpdate();
+            if (plugin.getWebPanelUploader() != null) plugin.getWebPanelUploader().scheduleForcePush();
         } catch (SQLException e) { e.printStackTrace(); }
     }
 

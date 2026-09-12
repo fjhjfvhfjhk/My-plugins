@@ -9,16 +9,54 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 
+/**
+ * Слоты с весами символов.
+ *
+ * Изменения (v2.1):
+ *  - символы имеют веса (NETHER_STAR редкий, DIAMOND частый);
+ *  - пересчитаны множители, RTP ≈ 94.5%;
+ *  - при 2-в-ряд мелкие символы дают 1.0x (возврат).
+ */
 public class SlotsManager {
 
-    public static final List<Material> SYMBOLS = List.of(
-            Material.DIAMOND, Material.EMERALD, Material.GOLD_INGOT,
-            Material.IRON_INGOT, Material.REDSTONE, Material.LAPIS_LAZULI, Material.NETHER_STAR
+    /** Символы и их веса (сумма = 100). */
+    private static final Map<Material, Integer> WEIGHTS = new LinkedHashMap<>();
+    static {
+        WEIGHTS.put(Material.DIAMOND, 25);
+        WEIGHTS.put(Material.EMERALD, 22);
+        WEIGHTS.put(Material.GOLD_INGOT, 18);
+        WEIGHTS.put(Material.IRON_INGOT, 15);
+        WEIGHTS.put(Material.REDSTONE, 10);
+        WEIGHTS.put(Material.LAPIS_LAZULI, 8);
+        WEIGHTS.put(Material.NETHER_STAR, 2);
+    }
+
+    /** Множители для 3-в-ряд. */
+    private static final Map<Material, Double> MULT_3 = Map.of(
+            Material.NETHER_STAR, 200.0,
+            Material.DIAMOND, 15.0,
+            Material.EMERALD, 12.0,
+            Material.GOLD_INGOT, 8.0,
+            Material.IRON_INGOT, 6.0,
+            Material.REDSTONE, 5.0,
+            Material.LAPIS_LAZULI, 5.0
+    );
+
+    /** Множители для 2-в-ряд. */
+    private static final Map<Material, Double> MULT_2 = Map.of(
+            Material.NETHER_STAR, 10.0,
+            Material.DIAMOND, 1.3,
+            Material.EMERALD, 1.15,
+            Material.GOLD_INGOT, 1.0,
+            Material.IRON_INGOT, 1.0,
+            Material.REDSTONE, 1.0,
+            Material.LAPIS_LAZULI, 1.0
     );
 
     private final RollPlugin plugin;
     private final Map<UUID, Game> games = new HashMap<>();
     private final Map<UUID, BukkitTask> tasks = new HashMap<>();
+    private final Random random = new Random();
 
     public SlotsManager(RollPlugin plugin) { this.plugin = plugin; }
 
@@ -86,21 +124,22 @@ public class SlotsManager {
         double multiplier = computeMultiplier(a, b, c);
         double winAmount = game.bet * multiplier;
 
-        if (multiplier > 0) {
-            double commissionPercent = plugin.getConfig().getDouble("slots.commission-percent", 5);
-            double commission = winAmount * commissionPercent / 100.0;
-            double payout = winAmount - commission;
+        if (multiplier > 1.0) {
+            double payout = winAmount;
             plugin.getEconomyManager().deposit(player, payout);
-            if (commission > 0) depositCommission(player.getUniqueId(), commission);
             player.sendMessage("§a🎰 " + prettify(a) + " | " + prettify(b) + " | " + prettify(c) +
                     " §a— Множитель: §e" + formatMultiplier(multiplier) +
                     "§a, выигрыш: §f" + plugin.getEconomyManager().format(payout));
             playSound(player, multiplier >= 5 ? "slots-jackpot" : "slots-win");
             plugin.getRollData().recordResult(player, "slots", game.bet, payout, true);
+        } else if (multiplier > 0) {
+            // Множитель 1.0 = возврат ставки
+            plugin.getEconomyManager().deposit(player, game.bet * multiplier);
+            player.sendMessage("§e🎰 " + prettify(a) + " | " + prettify(b) + " | " + prettify(c) +
+                    " §7— Пара совпала, возврат: §f" + plugin.getEconomyManager().format(game.bet * multiplier));
+            playSound(player, "slots-stop");
+            plugin.getRollData().recordResult(player, "slots", game.bet, game.bet * multiplier, false);
         } else {
-            double commissionPercent = plugin.getConfig().getDouble("slots.commission-percent", 5);
-            double commission = game.bet * commissionPercent / 100.0;
-            if (commission > 0) depositCommission(player.getUniqueId(), commission);
             player.sendMessage("§c🎰 " + prettify(a) + " | " + prettify(b) + " | " + prettify(c) +
                     " §c— Проигрыш. Потеряно: §f" + plugin.getEconomyManager().format(game.bet));
             playSound(player, "slots-lose");
@@ -114,30 +153,32 @@ public class SlotsManager {
         games.remove(uuid);
     }
 
+    /**
+     * Множитель для комбинации. Возвращает 0, 1.0 или больше.
+     * При 2-в-ряд множитель = MULT_2.get(symbol) (может быть 1.0 = возврат).
+     * При 3-в-ряд множитель = MULT_3.get(symbol).
+     */
     private double computeMultiplier(Material a, Material b, Material c) {
         if (a == b && b == c) {
-            return switch (a) {
-                case NETHER_STAR -> 50.0;
-                case DIAMOND -> 10.0;
-                case EMERALD -> 8.0;
-                case GOLD_INGOT -> 5.0;
-                case IRON_INGOT -> 4.0;
-                default -> 3.0;
-            };
+            return MULT_3.getOrDefault(a, 5.0);
         }
         if (a == b || b == c || a == c) {
             Material pair = a == b ? a : (b == c ? b : a);
-            return switch (pair) {
-                case NETHER_STAR -> 5.0;
-                case DIAMOND -> 2.5;
-                case EMERALD -> 2.0;
-                default -> 1.5;
-            };
+            return MULT_2.getOrDefault(pair, 1.0);
         }
         return 0.0;
     }
 
-    private Material randomSymbol() { return SYMBOLS.get(new Random().nextInt(SYMBOLS.size())); }
+    private Material randomSymbol() {
+        int total = WEIGHTS.values().stream().mapToInt(Integer::intValue).sum();
+        int roll = random.nextInt(total);
+        int cumulative = 0;
+        for (Map.Entry<Material, Integer> entry : WEIGHTS.entrySet()) {
+            cumulative += entry.getValue();
+            if (roll < cumulative) return entry.getKey();
+        }
+        return Material.DIAMOND;
+    }
 
     private String prettify(Material mat) {
         return switch (mat) {
@@ -154,7 +195,7 @@ public class SlotsManager {
 
     private String formatMultiplier(double m) {
         if (m == Math.floor(m)) return (int) m + "x";
-        return String.format("%.1fx", m);
+        return String.format("%.2fx", m);
     }
 
     private void playSound(Player player, String key) {
@@ -166,17 +207,6 @@ public class SlotsManager {
         } catch (IllegalArgumentException ignored) {}
     }
 
-    private void depositCommission(UUID uuid, double amount) {
-        try {
-            Object sovereignty = Bukkit.getPluginManager().getPlugin("Sovereignty");
-            if (sovereignty != null) {
-                Object cm = sovereignty.getClass().getMethod("getCountryManager").invoke(sovereignty);
-                String cName = (String) cm.getClass().getMethod("getCountryName", UUID.class).invoke(cm, uuid);
-                if (cName != null) cm.getClass().getMethod("depositToBank", String.class, double.class).invoke(cm, cName, amount);
-            }
-        } catch (Exception ignored) {}
-    }
-
     public static class Game {
         public final UUID playerId;
         public final double bet;
@@ -185,13 +215,13 @@ public class SlotsManager {
         public Material result1, result2, result3;
         public boolean stopped1, stopped2, stopped3;
         public boolean finished = false;
+
         public Game(UUID playerId, double bet) {
             this.playerId = playerId;
             this.bet = bet;
-            this.bar1 = randomSymbol();
-            this.bar2 = randomSymbol();
-            this.bar3 = randomSymbol();
+            this.bar1 = Material.DIAMOND;
+            this.bar2 = Material.EMERALD;
+            this.bar3 = Material.GOLD_INGOT;
         }
-        private Material randomSymbol() { return SYMBOLS.get(new Random().nextInt(SYMBOLS.size())); }
     }
 }

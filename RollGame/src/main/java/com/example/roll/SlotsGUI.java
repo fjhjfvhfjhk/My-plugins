@@ -57,9 +57,11 @@ public class SlotsGUI implements Listener {
             infoLore.add("§7Ставка: §f" + plugin.getEconomyManager().format(game.bet));
             if (game.finished) {
                 double mult = computeMultiplierForDisplay(game);
-                if (mult > 0) {
+                if (mult > 1.0) {
                     infoLore.add("§aМножитель: §e" + formatMultiplier(mult));
                     infoLore.add("§aВыигрыш: §f" + plugin.getEconomyManager().format(game.bet * mult));
+                } else if (mult > 0) {
+                    infoLore.add("§7Возврат: §f" + plugin.getEconomyManager().format(game.bet * mult));
                 } else {
                     infoLore.add("§cПроигрыш");
                 }
@@ -84,18 +86,24 @@ public class SlotsGUI implements Listener {
             inv.setItem(SLOT_BAR3, createSymbol(Material.GOLD_INGOT));
         }
 
-        // Таблица выплат
+        // Обновлённая таблица выплат
         ItemStack paytable = new ItemStack(Material.BOOK);
         ItemMeta ptMeta = paytable.getItemMeta();
         ptMeta.setDisplayName("§6Таблица выплат");
         ptMeta.setLore(List.of(
-                "§d⭐ 3× = §fx50 §7| 2× = §fx5",
-                "§b💎 3× = §fx10 §7| 2× = §fx2.5",
-                "§a💚 3× = §fx8 §7| 2× = §fx2",
-                "§6🥇 3× = §fx5 §7| 2× = §fx1.5",
-                "§7⚙ 3× = §fx4 §7| 2× = §fx1.5",
-                "§c🔴 3× = §fx3 §7| 2× = §fx1.5",
-                "§9🔵 3× = §fx3 §7| 2× = §fx1.5"
+                "§7RTP ≈ 94.5%",
+                "",
+                "§d⭐ 3× = §fx200 §7| 2× = §fx10",
+                "§b💎 3× = §fx15 §7| 2× = §fx1.3",
+                "§a💚 3× = §fx12 §7| 2× = §fx1.15",
+                "§6🥇 3× = §fx8 §7| 2× = §fx1.0",
+                "§7⚙ 3× = §fx6 §7| 2× = §fx1.0",
+                "§c🔴 3× = §fx5 §7| 2× = §fx1.0",
+                "§9🔵 3× = §fx5 §7| 2× = §fx1.0",
+                "",
+                "§7Частота выпадения:",
+                "§f💎 25% §7| §f💚 22% §7| §f🥇 18% §7| §f⚙ 15%",
+                "§f🔴 10% §7| §f🔵 8% §7| §f⭐ 2%"
         ));
         paytable.setItemMeta(ptMeta);
         inv.setItem(0, paytable);
@@ -126,21 +134,22 @@ public class SlotsGUI implements Listener {
         if (a == null || b == null || c == null) return 0;
         if (a == b && b == c) {
             return switch (a) {
-                case NETHER_STAR -> 50.0;
-                case DIAMOND -> 10.0;
-                case EMERALD -> 8.0;
-                case GOLD_INGOT -> 5.0;
-                case IRON_INGOT -> 4.0;
-                default -> 3.0;
+                case NETHER_STAR -> 200.0;
+                case DIAMOND -> 15.0;
+                case EMERALD -> 12.0;
+                case GOLD_INGOT -> 8.0;
+                case IRON_INGOT -> 6.0;
+                case REDSTONE, LAPIS_LAZULI -> 5.0;
+                default -> 5.0;
             };
         }
         if (a == b || b == c || a == c) {
             Material pair = a == b ? a : (b == c ? b : a);
             return switch (pair) {
-                case NETHER_STAR -> 5.0;
-                case DIAMOND -> 2.5;
-                case EMERALD -> 2.0;
-                default -> 1.5;
+                case NETHER_STAR -> 10.0;
+                case DIAMOND -> 1.3;
+                case EMERALD -> 1.15;
+                default -> 1.0;
             };
         }
         return 0.0;
@@ -148,7 +157,7 @@ public class SlotsGUI implements Listener {
 
     private String formatMultiplier(double m) {
         if (m == Math.floor(m)) return (int) m + "x";
-        return String.format("%.1fx", m);
+        return String.format("%.2fx", m);
     }
 
     private ItemStack createSymbol(Material mat) {

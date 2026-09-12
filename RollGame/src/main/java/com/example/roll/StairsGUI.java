@@ -14,17 +14,25 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.*;
 
+/**
+ * GUI лестницы на 12 ступеней.
+ * Ступени 1-4 — нижний ряд (38-41), 5-8 — средний (29-32), 9-12 — верхний (20-23).
+ */
 public class StairsGUI implements Listener {
 
     private static final String TITLE = "§6🪜 Лестница";
     private static final Map<Player, Inventory> openInventories = new HashMap<>();
 
-    // Слоты ступеней (снизу вверх, 10 ступеней)
-    private static final int[] STEP_SLOTS = {38, 29, 20, 11, 12, 13, 14, 15, 16, 17};
+    /** 12 слотов ступеней — снизу вверх. */
+    private static final int[] STEP_SLOTS = {
+            38, 39, 40, 41,  // ступени 1-4 (низ)
+            29, 30, 31, 32,  // ступени 5-8 (середина)
+            20, 21, 22, 23   // ступени 9-12 (верх)
+    };
 
     private static final int SLOT_INFO = 4;
-    private static final int SLOT_STEP = 22;
-    private static final int SLOT_CASHOUT = 40;
+    private static final int SLOT_STEP = 13;
+    private static final int SLOT_CASHOUT = 15;
     private static final int SLOT_CLOSE = 44;
 
     private final RollPlugin plugin;
@@ -49,7 +57,7 @@ public class StairsGUI implements Listener {
 
         StairsManager.Game game = stairsManager.getGame(player.getUniqueId());
 
-        // Информация
+        // === Информация ===
         ItemStack info = new ItemStack(Material.OAK_SIGN);
         ItemMeta im = info.getItemMeta();
         im.setDisplayName("§e🪜 Лестница");
@@ -72,13 +80,12 @@ public class StairsGUI implements Listener {
         info.setItemMeta(im);
         inv.setItem(SLOT_INFO, info);
 
-        // Ступени
+        // === Ступени ===
         if (game != null) {
             for (int i = 0; i < STEP_SLOTS.length; i++) {
                 int stepNum = i + 1;
                 double mult = StairsManager.MULTIPLIERS[i];
                 boolean passed = game.currentStep >= stepNum;
-                boolean current = game.currentStep == stepNum;
                 boolean next = game.currentStep + 1 == stepNum && !game.finished;
 
                 Material mat;
@@ -91,18 +98,21 @@ public class StairsGUI implements Listener {
                 ItemMeta sm = step.getItemMeta();
                 String prefix = passed ? "§a✔ " : (next ? "§e➡ " : "§7");
                 sm.setDisplayName(prefix + "Ступень " + stepNum + " §7(§e" + formatMultiplier(mult) + "§7)");
-                sm.setLore(List.of("§7Выигрыш: §f" + (game != null ? plugin.getEconomyManager().format(game.bet * mult) : "?")));
+                sm.setLore(List.of(
+                        "§7Выигрыш: §f" + plugin.getEconomyManager().format(game.bet * mult),
+                        "§7Шанс провала на этой ступени: §c15%"
+                ));
                 step.setItemMeta(sm);
                 inv.setItem(STEP_SLOTS[i], step);
             }
         }
 
-        // Кнопка "Шагнуть"
+        // === Кнопка "Шагнуть" ===
         if (game != null && !game.finished && game.currentStep < StairsManager.MULTIPLIERS.length) {
             ItemStack stepBtn = new ItemStack(Material.LADDER);
             ItemMeta sbm = stepBtn.getItemMeta();
             sbm.setDisplayName("§e➡ Шагнуть дальше");
-            double failChance = plugin.getConfig().getDouble("stairs.fail-chance", 0.12);
+            double failChance = plugin.getConfig().getDouble("stairs.fail-chance", 0.15);
             double nextMult = StairsManager.MULTIPLIERS[Math.min(game.currentStep, StairsManager.MULTIPLIERS.length - 1)];
             sbm.setLore(List.of(
                     "§7Следующий множитель: §e" + formatMultiplier(nextMult),
@@ -113,7 +123,7 @@ public class StairsGUI implements Listener {
             inv.setItem(SLOT_STEP, stepBtn);
         }
 
-        // Кнопка "Забрать"
+        // === Кнопка "Забрать" ===
         if (game != null && !game.finished && game.currentStep > 0) {
             ItemStack cashoutBtn = new ItemStack(Material.LIME_WOOL);
             ItemMeta cbm = cashoutBtn.getItemMeta();
@@ -128,7 +138,7 @@ public class StairsGUI implements Listener {
             inv.setItem(SLOT_CASHOUT, cashoutBtn);
         }
 
-        // Закрыть
+        // === Закрыть ===
         ItemStack close = new ItemStack(Material.BARRIER);
         ItemMeta cm = close.getItemMeta();
         cm.setDisplayName("§cЗакрыть");

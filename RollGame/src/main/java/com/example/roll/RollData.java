@@ -13,14 +13,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Центральное хранилище RollGame:
- *  - последние ставки игрока по каждой игре
- *  - статистика игрока по каждой игре
- *  - общий джекпот-банк
- *  - рассылки о крупных выигрышах и триггер джекпота
- *  - визуальные эффекты при победе
- */
 public class RollData {
 
     public static final String[] GAME_KEYS = {"classic", "duel", "mines", "slots", "wheel", "stairs"};
@@ -139,11 +131,17 @@ public class RollData {
     public void addToJackpot(double amount) {
         jackpot += (long) amount;
         save();
+        notifyJackpotChanged();
     }
 
     public void resetJackpot() {
         jackpot = 0;
         save();
+        notifyJackpotChanged();
+    }
+
+    private void notifyJackpotChanged() {
+        if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markJackpotDirty();
     }
 
     public boolean tryJackpot() {
@@ -167,7 +165,9 @@ public class RollData {
         }
 
         double jackpotFee = bet * 0.01;
+        long oldJackpot = jackpot;
         jackpot += (long) jackpotFee;
+        if (jackpot != oldJackpot) notifyJackpotChanged();
 
         long broadcastThreshold = plugin.getConfig().getLong("broadcast-threshold", 50000);
         if (win && payout >= broadcastThreshold) {
@@ -178,6 +178,7 @@ public class RollData {
         if (win && jackpot > 0 && tryJackpot()) {
             long pot = jackpot;
             jackpot = 0;
+            notifyJackpotChanged();
             plugin.getEconomyManager().deposit(player, pot);
             Bukkit.broadcastMessage("");
             Bukkit.broadcastMessage("§d§l╔══════════════════════════════╗");

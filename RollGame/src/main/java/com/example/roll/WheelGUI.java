@@ -14,14 +14,34 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.*;
 
+/**
+ * GUI Колеса Фортуны в виде круга.
+ *
+ * Раскладка 5×5 (смещено на (0, 2)) в инвентаре 6×9:
+ *        [4]
+ *     [3]   [5]
+ *   [11]      [15]
+ *   [20]      [24]
+ *   [29]      [33]
+ *     [39]   [41]
+ *        [40]
+ *
+ * Позиция 0 (слот 4) — "верхний" сектор под указателем = текущий.
+ * Далее по часовой стрелке: 5, 15, 24, 33, 41, 40, 39, 29, 20, 11, 3.
+ */
 public class WheelGUI implements Listener {
 
     private static final String TITLE = "§6🎡 Колесо Фортуны";
     private static final Map<Player, Inventory> openInventories = new HashMap<>();
-    private static final int WINDOW_START = 18;
-    private static final int WINDOW_CENTER = 22;
-    private static final int SLOT_REPEAT = 42;
-    private static final int SLOT_CLOSE = 44;
+
+    /** 12 позиций круга, начиная с верхнего и далее по часовой. */
+    private static final int[] WHEEL_SLOTS = {
+            4, 5, 15, 24, 33, 41, 40, 39, 29, 20, 11, 3
+    };
+
+    private static final int SLOT_INFO = 13;
+    private static final int SLOT_REPEAT = 49;
+    private static final int SLOT_CLOSE = 53;
 
     private final RollPlugin plugin;
     private final WheelManager wheelManager;
@@ -33,7 +53,7 @@ public class WheelGUI implements Listener {
     }
 
     public void open(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 45, TITLE);
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE);
         updateInventory(inv, player);
         player.openInventory(inv);
         openInventories.put(player, inv);
@@ -45,7 +65,7 @@ public class WheelGUI implements Listener {
 
         WheelManager.Game game = wheelManager.getGame(player.getUniqueId());
 
-        // Информация
+        // === Информация ===
         ItemStack info = new ItemStack(Material.OAK_SIGN);
         ItemMeta infoMeta = info.getItemMeta();
         infoMeta.setDisplayName("§e🎡 Колесо Фортуны");
@@ -61,7 +81,7 @@ public class WheelGUI implements Listener {
                     infoLore.add("§cПроигрыш");
                 }
             } else {
-                infoLore.add("§7Вращение...");
+                infoLore.add("§6Колесо вращается...");
             }
         } else {
             infoLore.add("§7Игра не активна");
@@ -69,47 +89,55 @@ public class WheelGUI implements Listener {
         }
         infoMeta.setLore(infoLore);
         info.setItemMeta(infoMeta);
-        inv.setItem(4, info);
+        inv.setItem(SLOT_INFO, info);
 
-        // Указатель
-        ItemStack pointer = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
+        // === Указатель сверху ===
+        ItemStack pointer = new ItemStack(Material.LIME_DYE);
         ItemMeta pm = pointer.getItemMeta();
         pm.setDisplayName("§a▲");
+        pm.setLore(List.of("§7Стрелка указывает на текущий сектор"));
         pointer.setItemMeta(pm);
-        inv.setItem(13, pointer);
+        // Оставим слот 4 для текущего сектора, а стрелку поставим над ним (в слот 2 или 6 — углы)
+        inv.setItem(2, pointer);
 
-        // Окно колеса (9 слотов 18..26)
-        if (game != null) {
+        // === Круг ===
+        if (game != null && !game.sequence.isEmpty()) {
             int size = game.sequence.size();
-            for (int i = 0; i < 9; i++) {
-                int idx = (game.currentShift + i) % size;
-                int sector = game.sequence.get(idx);
-                double mult = WheelManager.SECTORS[sector];
-                boolean isCenter = (WINDOW_START + i) == WINDOW_CENTER;
-                inv.setItem(WINDOW_START + i, createSectorItem(mult, isCenter && game.finished));
+            for (int i = 0; i < WHEEL_SLOTS.length; i++) {
+                // Позиция 0 (верхний центр) = index 4 в window.
+                int seqIdx = (game.currentShift + 4 + i) % size;
+                if (seqIdx < 0) seqIdx += size;
+                int sectorIdx = game.sequence.get(seqIdx);
+                double mult = WheelManager.SECTORS[sectorIdx];
+
+                boolean isCurrent = (i == 0);
+                boolean isWinner = isCurrent && game.finished;
+                inv.setItem(WHEEL_SLOTS[i], createSectorItem(mult, isCurrent, isWinner));
             }
         } else {
-            for (int i = 0; i < 9; i++) {
-                int sector = i % WheelManager.SECTORS.length;
-                inv.setItem(WINDOW_START + i, createSectorItem(WheelManager.SECTORS[sector], false));
+            // Игра не активна — показываем превью секторов.
+            for (int i = 0; i < WHEEL_SLOTS.length; i++) {
+                double mult = WheelManager.SECTORS[i % WheelManager.SECTORS.length];
+                inv.setItem(WHEEL_SLOTS[i], createSectorItem(mult, false, false));
             }
         }
 
-        // Справка
+        // === Справка по секторам ===
         ItemStack help = new ItemStack(Material.BOOK);
         ItemMeta hm = help.getItemMeta();
         hm.setDisplayName("§6Секторы множителей");
         hm.setLore(List.of(
                 "§7Всего секторов: §f12",
-                "§c0x §7— 4 сектора (проигрыш)",
-                "§e0.5x, 1x §7— малый возврат",
-                "§62x, 3x §7— средний выигрыш",
-                "§d5x §7— джекпот (1 сектор)"
+                "§c0x §7— 5 секторов (проигрыш)",
+                "§e0.5x §7— 2 сектора",
+                "§e1x §7— 3 сектора (возврат)",
+                "§a2.5x §7— 1 сектор",
+                "§d5x §7— 1 сектор (джекпот)"
         ));
         help.setItemMeta(hm);
         inv.setItem(0, help);
 
-        // Кнопка "Повторить ставку"
+        // === Кнопка "Повторить ставку" ===
         if (game != null && game.finished) {
             ItemStack repeat = new ItemStack(Material.GOLD_INGOT);
             ItemMeta rm = repeat.getItemMeta();
@@ -122,7 +150,7 @@ public class WheelGUI implements Listener {
             inv.setItem(SLOT_REPEAT, repeat);
         }
 
-        // Кнопка "Закрыть"
+        // === Кнопка "Закрыть" ===
         ItemStack close = new ItemStack(Material.BARRIER);
         ItemMeta cm = close.getItemMeta();
         cm.setDisplayName("§cЗакрыть");
@@ -130,18 +158,30 @@ public class WheelGUI implements Listener {
         inv.setItem(SLOT_CLOSE, close);
     }
 
-    private ItemStack createSectorItem(double mult, boolean highlight) {
+    /**
+     * Создаёт иконку сектора. Цвет зависит от множителя,
+     * угловые (текущий / победитель) подсвечиваются ярче.
+     */
+    private ItemStack createSectorItem(double mult, boolean isCurrent, boolean isWinner) {
         Material mat;
         if (mult <= 0) mat = Material.RED_STAINED_GLASS_PANE;
         else if (mult < 1) mat = Material.ORANGE_STAINED_GLASS_PANE;
         else if (mult < 2) mat = Material.YELLOW_STAINED_GLASS_PANE;
         else if (mult < 5) mat = Material.LIME_STAINED_GLASS_PANE;
-        else mat = Material.PURPLE_STAINED_GLASS_PANE;
+        else mat = Material.MAGENTA_STAINED_GLASS_PANE;
 
-        ItemStack item = new ItemStack(highlight ? Material.NETHER_STAR : mat);
+        ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
-        String prefix = highlight ? "§d§l🏆 " : "";
+        String prefix;
+        if (isWinner) prefix = "§d§l🏆 ";
+        else if (isCurrent) prefix = "§a▶ ";
+        else prefix = "";
         meta.setDisplayName(prefix + "§e" + formatMultiplier(mult));
+        if (isCurrent) {
+            meta.setLore(List.of("§7Текущий сектор под указателем"));
+        } else if (isWinner) {
+            meta.setLore(List.of("§a🎉 ВЫПАЛ!"));
+        }
         item.setItemMeta(meta);
         return item;
     }
@@ -192,8 +232,9 @@ public class WheelGUI implements Listener {
             if (game != null && game.finished) {
                 double bet = game.bet;
                 wheelManager.clearGame(player.getUniqueId());
-                wheelManager.start(player, bet);
-                updateInventory(event.getInventory(), player);
+                if (wheelManager.start(player, bet)) {
+                    updateInventory(event.getInventory(), player);
+                }
             }
         }
     }

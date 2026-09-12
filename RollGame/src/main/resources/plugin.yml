@@ -1,10 +1,11 @@
 name: RollGame
-version: 2.0.0
+version: 2.1.0
 main: com.example.roll.RollPlugin
 api-version: '1.21'
 description: Казино-плагин — рулетка, дуэль, мины, слоты, колесо, лестница, покер
 
 depend: [Vault]
+softdepend: [Sovereignty]
 
 commands:
   roll:

@@ -4,6 +4,12 @@ import org.bukkit.entity.Player;
 
 import java.util.*;
 
+/**
+ * Мины.
+ *
+ * Изменения (v2.1):
+ *  - house edge увеличен: 0.97 → 0.93 (RTP ≈ 93%).
+ */
 public class MinesManager {
 
     private final RollPlugin plugin;
@@ -12,7 +18,6 @@ public class MinesManager {
     public MinesManager(RollPlugin plugin) { this.plugin = plugin; }
 
     public MinesGame getGame(UUID uuid) { return games.get(uuid); }
-
     public boolean hasActiveGame(UUID uuid) {
         MinesGame game = games.get(uuid);
         return game != null && !game.gameOver;
@@ -60,9 +65,6 @@ public class MinesManager {
         if (game.minePositions.contains(cellIndex)) {
             game.gameOver = true;
             game.won = false;
-            double commissionPercent = plugin.getConfig().getDouble("mines.commission-percent", 5);
-            double commission = game.bet * commissionPercent / 100.0;
-            if (commission > 0) depositCommission(player.getUniqueId(), commission);
             player.sendMessage("§c💥 Вы наткнулись на мину! Потеряно: " + plugin.getEconomyManager().format(game.bet));
             playSound(player, "mines-lose");
             plugin.getRollData().recordResult(player, "mines", game.bet, 0, false);
@@ -85,14 +87,9 @@ public class MinesManager {
             return false;
         }
 
-        double amount = game.getPotentialWin();
-        double commissionPercent = plugin.getConfig().getDouble("mines.commission-percent", 0);
-        double commission = amount * commissionPercent / 100.0;
-        double payout = amount - commission;
-        if (payout < 0) payout = 0;
+        double payout = game.getPotentialWin();
 
         plugin.getEconomyManager().deposit(player, payout);
-        if (commission > 0) depositCommission(player.getUniqueId(), commission);
 
         player.sendMessage("§a🎉 Вы забрали выигрыш: §f" + plugin.getEconomyManager().format(payout) +
                 "§a (множитель: §e" + String.format("%.2f", game.getMultiplier()) + "x§a)");
@@ -100,6 +97,7 @@ public class MinesManager {
 
         game.gameOver = true;
         game.won = true;
+
         plugin.getRollData().recordResult(player, "mines", game.bet, payout, true);
         return true;
     }
@@ -124,19 +122,6 @@ public class MinesManager {
             org.bukkit.Sound sound = org.bukkit.Sound.valueOf(soundName);
             player.playSound(player.getLocation(), sound, 1.0f, 1.0f);
         } catch (IllegalArgumentException ignored) {}
-    }
-
-    private void depositCommission(UUID playerUuid, double amount) {
-        try {
-            Object sovereignty = org.bukkit.Bukkit.getPluginManager().getPlugin("Sovereignty");
-            if (sovereignty != null) {
-                Object cm = sovereignty.getClass().getMethod("getCountryManager").invoke(sovereignty);
-                String cName = (String) cm.getClass().getMethod("getCountryName", UUID.class).invoke(cm, playerUuid);
-                if (cName != null) {
-                    cm.getClass().getMethod("depositToBank", String.class, double.class).invoke(cm, cName, amount);
-                }
-            }
-        } catch (Exception ignored) {}
     }
 
     public static class MinesGame {
@@ -173,7 +158,8 @@ public class MinesManager {
             if (k == 0) return 1.0;
             double mult = 1.0;
             for (int i = 0; i < k; i++) mult *= (double) (totalCells - i) / (totalCells - minesCount - i);
-            mult *= 0.97;
+            // House edge 7% (RTP ≈ 93%)
+            mult *= 0.93;
             return mult;
         }
 

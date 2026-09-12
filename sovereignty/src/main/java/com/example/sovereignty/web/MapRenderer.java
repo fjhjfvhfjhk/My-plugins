@@ -16,10 +16,11 @@ import java.util.List;
  *  1) terrain из кэша TerrainRenderer (с relief-шейдингом)
  *  2) серые заглушки для заклеймленных, но не отрендеренных чанков
  *  3) цветные границы стран с полупрозрачной заливкой
+ *
+ * Возвращает MapRenderResult с PNG и метаданными для веб-панели.
  */
 public class MapRenderer {
 
-    /** Увеличенный максимум — 12288 пикселей (12K). */
     private static final int MAX_SIZE = 12288;
     private static final int PADDING_CHUNKS = 15;
 
@@ -39,7 +40,28 @@ public class MapRenderer {
         this.plugin = plugin;
     }
 
-    public byte[] renderMap() throws Exception {
+    /**
+     * Результат рендера карты:
+     *   png         — байты PNG
+     *   world       — имя мира
+     *   minChunkX   — минимальная X-координата чанка (для пересчёта world→px на фронте)
+     *   minChunkZ   — минимальная Z-координата чанка
+     */
+    public static class MapRenderResult {
+        public final byte[] png;
+        public final String world;
+        public final int minChunkX;
+        public final int minChunkZ;
+
+        public MapRenderResult(byte[] png, String world, int minChunkX, int minChunkZ) {
+            this.png = png;
+            this.world = world;
+            this.minChunkX = minChunkX;
+            this.minChunkZ = minChunkZ;
+        }
+    }
+
+    public MapRenderResult renderMap() throws Exception {
         Map<String, String> ownerMap = new HashMap<>();
         int minCX = Integer.MAX_VALUE, maxCX = Integer.MIN_VALUE;
         int minCZ = Integer.MAX_VALUE, maxCZ = Integer.MIN_VALUE;
@@ -86,6 +108,10 @@ public class MapRenderer {
             } catch (NumberFormatException ignored) {}
         }
 
+        // ВАЖНО: сохраняем значения ДО padding — именно они нужны фронту для пересчёта.
+        int metaMinCX = minCX;
+        int metaMinCZ = minCZ;
+
         minCX -= PADDING_CHUNKS; minCZ -= PADDING_CHUNKS;
         maxCX += PADDING_CHUNKS; maxCZ += PADDING_CHUNKS;
 
@@ -107,7 +133,6 @@ public class MapRenderer {
         g.setColor(new Color(0x0f1117));
         g.fillRect(0, 0, imgWidth, imgHeight);
 
-        // Terrain из кэша
         for (Map.Entry<String, BufferedImage> e : terrainCache.entrySet()) {
             String[] parts = e.getKey().split(":");
             if (parts.length < 3) continue;
@@ -125,7 +150,6 @@ public class MapRenderer {
             g.drawImage(e.getValue(), px, pz, null);
         }
 
-        // Заклеймленные, но не отрендеренные — серая заливка
         Color gray = new Color(0x2a2d38);
         for (Map.Entry<String, String> e : ownerMap.entrySet()) {
             String[] parts = e.getKey().split(":");
@@ -145,14 +169,12 @@ public class MapRenderer {
             g.fillRect(px, pz, TerrainRenderer.IMG_SIZE, TerrainRenderer.IMG_SIZE);
         }
 
-        // Цвета стран
         Map<String, Color> countryColors = new HashMap<>();
         int idx = 0;
         for (String name : plugin.getCountryManager().getAllCountries()) {
             countryColors.put(name, PALETTE[idx++ % PALETTE.length]);
         }
 
-        // Полупрозрачная заливка территорий
         Composite originalComposite = g.getComposite();
         g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.16f));
         for (Map.Entry<String, String> e : ownerMap.entrySet()) {
@@ -174,7 +196,6 @@ public class MapRenderer {
         }
         g.setComposite(originalComposite);
 
-        // Границы стран
         int borderWidth = Math.max(2, Math.round(TerrainRenderer.IMG_SIZE * 0.15f));
         g.setStroke(new BasicStroke(borderWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         for (Map.Entry<String, String> e : ownerMap.entrySet()) {
@@ -226,6 +247,22 @@ public class MapRenderer {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(finalImg, "PNG", baos);
-        return baos.toByteArray();
+
+        // Метаданные для фронта: возвращаем "pre-padding" min chunk coords.
+        // Фронт пересчитает world coords так:
+        //   imgX = (worldX / 16 - metaMinCX) * IMG_SIZE_PER_CHUNK * scale
+        // где scale = finalWidth / imgWidth
+        // Чтобы не заморачиваться со scale на фронте, отдадим и его тоже — но проще
+        // передать масштаб неявно: canvas.width / (maxCX - minCX + 1) уже включает scale.
+        // Фронт знает финальные размеры по canvas.width/height. Ему достаточно
+        // minChunkX до padding и IMG_SIZE_PER_CHUNK в пикселях canvas.
+        // Формула на фронте:
+        //   pxCanvas = ((worldX / 16 - metaMinCX) + PADDING) * pxPerChunk
+        // где pxPerChunk = canvas.width / totalChunks.
+        // Проще передать "padded minChunkX" и "padded minChunkZ", тогда формула:
+        //   pxCanvas = (worldX / 16 - paddedMinCX) * pxPerChunk
+        // Ниже мы уже посчитали minCX и minCZ с padding — их и отдаём.
+
+        return new MapRenderResult(baos.toByteArray(), worldName, minCX, minCZ);
     }
 }

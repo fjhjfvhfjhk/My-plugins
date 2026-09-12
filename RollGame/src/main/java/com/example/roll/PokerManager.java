@@ -14,6 +14,11 @@ import java.util.*;
 
 /**
  * Техасский Холдем. Упрощённая и дружелюбная версия.
+ *
+ * Изменения (v2.1):
+ *  - broadcast при создании стола;
+ *  - refresh GUIs после анимации раздачи (фиксит пропажу кнопок);
+ *  - refreshAll без переоткрытия инвентаря.
  */
 public class PokerManager {
 
@@ -68,6 +73,15 @@ public class PokerManager {
                 "§7. Блайнды: §f" + table.smallBlind + "/" + table.bigBlind);
         creator.sendMessage("§eПригласите друзей: §f/roll poker join " + table.id);
         creator.sendMessage("§eКогда все готовы: §f/roll poker start");
+
+        // Broadcast для всего сервера
+        Bukkit.broadcastMessage("");
+        Bukkit.broadcastMessage("§6§l🃏 ПОКЕР §r§7| §f" + creator.getName() + " §7создал стол §e#" + table.id);
+        Bukkit.broadcastMessage("§7Бай-ин: §f" + plugin.getEconomyManager().format(buyIn) +
+                " §7| Блайнды: §f" + table.smallBlind + "/" + table.bigBlind);
+        Bukkit.broadcastMessage("§eПрисоединиться: §f/roll poker join " + table.id +
+                " §7| Меню столов: §f/roll poker tables");
+        Bukkit.broadcastMessage("");
         return true;
     }
 
@@ -210,6 +224,7 @@ public class PokerManager {
         broadcastToTable(table, "§6§l═══ Раздача #" + table.handNumber + " ═══");
         broadcastToTable(table, "§7Блайнды: §f" + table.smallBlind + "/" + table.bigBlind);
 
+        // Открываем GUI всем
         for (PokerTable.Player p : table.players.values()) {
             Player pl = Bukkit.getPlayer(p.uuid);
             if (pl != null && playerTable.containsKey(p.uuid)) {
@@ -225,7 +240,7 @@ public class PokerManager {
             public void run() {
                 if (!tables.containsKey(table.id)) { cancel(); return; }
                 table.dealtCards = step;
-                refreshGUIs(table);
+                PokerGUI.refreshAll(table);
                 for (PokerTable.Player p : table.players.values()) {
                     Player pl = Bukkit.getPlayer(p.uuid);
                     if (pl != null) pl.playSound(pl.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.4f, 1.6f + step * 0.03f);
@@ -254,6 +269,9 @@ public class PokerManager {
                     table.turnStartTime = System.currentTimeMillis();
 
                     broadcastTurn(table);
+
+                    // КРИТИЧНО: перерисовать GUI, чтобы появились кнопки действий.
+                    PokerGUI.refreshAll(table);
                 }
             }
         }.runTaskTimer(plugin, 2L, 2L);
@@ -399,7 +417,7 @@ public class PokerManager {
         table.currentTurn = next.uuid;
         table.turnStartTime = System.currentTimeMillis();
         broadcastTurn(table);
-        refreshGUIs(table);
+        PokerGUI.refreshAll(table);
     }
 
     private boolean isRoundComplete(PokerTable table) {
@@ -449,7 +467,7 @@ public class PokerManager {
                 if (step < newCards.size()) {
                     table.community.add(null);
                     table.revealingIndex = table.community.size() - 1;
-                    refreshGUIs(table);
+                    PokerGUI.refreshAll(table);
                     for (PokerTable.Player p : table.players.values()) {
                         Player pl = Bukkit.getPlayer(p.uuid);
                         if (pl != null) pl.playSound(pl.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.7f, 1.0f);
@@ -462,7 +480,7 @@ public class PokerManager {
                     table.community.set(idx, newCards.get(i));
                 }
                 table.revealingIndex = -1;
-                refreshGUIs(table);
+                PokerGUI.refreshAll(table);
                 for (PokerTable.Player p : table.players.values()) {
                     Player pl = Bukkit.getPlayer(p.uuid);
                     if (pl != null) pl.playSound(pl.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.7f, 1.3f);
@@ -497,7 +515,7 @@ public class PokerManager {
         table.currentTurn = first.uuid;
         table.turnStartTime = System.currentTimeMillis();
         broadcastTurn(table);
-        refreshGUIs(table);
+        PokerGUI.refreshAll(table);
     }
 
     // ========== Showdown ==========
@@ -556,7 +574,8 @@ public class PokerManager {
         }
 
         plugin.getPokerHistory().addHand(
-                new PokerHistory.Record(System.currentTimeMillis(), winnerUuid != null ? winnerUuid : UUID.randomUUID(),
+                new PokerHistory.Record(System.currentTimeMillis(),
+                        winnerUuid != null ? winnerUuid : UUID.randomUUID(),
                         winnerName, totalPot, finalHandName, summaryLines),
                 profitsThisHand, names);
 
@@ -603,7 +622,7 @@ public class PokerManager {
             }
         }, 120L);
 
-        refreshGUIs(table);
+        PokerGUI.refreshAll(table);
     }
 
     private String handNameStr(List<PokerHand.Card> cards) {
@@ -701,7 +720,8 @@ public class PokerManager {
         }
 
         plugin.getPokerHistory().addHand(
-                new PokerHistory.Record(System.currentTimeMillis(), winner.uuid, winner.name, table.pot, "все спасовали", lines),
+                new PokerHistory.Record(System.currentTimeMillis(), winner.uuid, winner.name,
+                        table.pot, "все спасовали", lines),
                 profitsThisHand, names);
 
         table.pot = 0;
@@ -741,24 +761,13 @@ public class PokerManager {
                 startNewHand(table);
             }
         }, 80L);
-        refreshGUIs(table);
+        PokerGUI.refreshAll(table);
     }
 
     private void broadcastToTable(PokerTable table, String msg) {
         for (UUID uuid : table.players.keySet()) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) p.sendMessage(msg);
-        }
-    }
-
-    private void refreshGUIs(PokerTable table) {
-        for (UUID uuid : table.players.keySet()) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p == null) continue;
-            if (!playerTable.containsKey(uuid)) continue;
-            if (p.getOpenInventory().getTitle().equals(PokerGUI.TITLE)) {
-                PokerGUI.open(p, table);
-            }
         }
     }
 

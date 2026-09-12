@@ -12,7 +12,7 @@ import java.util.*;
 public class CountryManager {
 
     private final SovereigntyPlugin plugin;
-    private final DatabaseManager db;
+    final DatabaseManager db;
     private final EnergyManager energyManager;
     private final EconomyManager economyManager;
     private final int baseMaxClaims;
@@ -66,6 +66,8 @@ public class CountryManager {
                 bankPs.setString(1, name);
                 bankPs.executeUpdate();
             }
+            // Force push на веб-панель
+            if (plugin.getWebPanelUploader() != null) plugin.getWebPanelUploader().scheduleForcePush();
             return true;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
@@ -150,6 +152,7 @@ public class CountryManager {
                 }
                 conn.commit();
                 plugin.getLogger().info("Страна переименована: " + oldName + " -> " + newName);
+                if (plugin.getWebPanelUploader() != null) plugin.getWebPanelUploader().scheduleForcePush();
                 return true;
             } catch (SQLException e) {
                 conn.rollback();
@@ -492,6 +495,7 @@ public class CountryManager {
             ps.setString(1, countryName);
             ps.setString(2, playerUuid.toString());
             ps.executeUpdate();
+            if (plugin.getWebPanelUploader() != null) plugin.getWebPanelUploader().scheduleForcePush();
             return true;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
@@ -502,6 +506,7 @@ public class CountryManager {
             ps.setString(1, countryName);
             ps.setString(2, playerUuid.toString());
             ps.executeUpdate();
+            if (plugin.getWebPanelUploader() != null) plugin.getWebPanelUploader().scheduleForcePush();
             return true;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
@@ -558,6 +563,7 @@ public class CountryManager {
                     ps.executeUpdate();
                 }
                 conn.commit();
+                if (plugin.getWebPanelUploader() != null) plugin.getWebPanelUploader().scheduleForcePush();
                 return true;
             } catch (SQLException e) {
                 conn.rollback();

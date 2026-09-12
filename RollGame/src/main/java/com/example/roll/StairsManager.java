@@ -6,9 +6,21 @@ import org.bukkit.entity.Player;
 
 import java.util.*;
 
+/**
+ * Лестница (Crash-style).
+ *
+ * Изменения (v2.1):
+ *  - 12 ступеней вместо 10;
+ *  - fail-chance 15% на каждой ступени (включая первую);
+ *  - новые множители; RTP оптимальной игры ≈ 92.4%.
+ */
 public class StairsManager {
 
-    public static final double[] MULTIPLIERS = {1.15, 1.35, 1.6, 2.0, 2.5, 3.2, 4.5, 6.0, 10.0, 20.0};
+    /** 12 множителей: 1.10x → 6.50x. */
+    public static final double[] MULTIPLIERS = {
+            1.10, 1.25, 1.40, 1.60, 1.85, 2.15,
+            2.50, 3.00, 3.60, 4.40, 5.40, 6.50
+    };
 
     private final RollPlugin plugin;
     private final Map<UUID, Game> games = new HashMap<>();
@@ -42,27 +54,21 @@ public class StairsManager {
         Game game = new Game(player.getUniqueId(), bet);
         games.put(player.getUniqueId(), game);
         player.sendMessage("§6🪜 Лестница началась! Ставка: §f" + plugin.getEconomyManager().format(bet));
-        player.sendMessage("§eШагните на первую ступень, чтобы начать.");
+        player.sendMessage("§eШагните на первую ступень, чтобы начать. Шанс провала: §f15%§e.");
         return true;
     }
 
+    /**
+     * Шаг на следующую ступень. Первый шаг тоже рисковый (fail-chance проверяется всегда).
+     */
     public boolean step(Player player) {
         Game game = games.get(player.getUniqueId());
         if (game == null || game.finished) return false;
         if (game.currentStep >= MULTIPLIERS.length) { cashout(player); return true; }
 
-        if (game.currentStep == 0) {
-            game.currentStep = 1;
-            playSound(player, "stairs-step");
-            return true;
-        }
-
-        double failChance = plugin.getConfig().getDouble("stairs.fail-chance", 0.12);
+        double failChance = plugin.getConfig().getDouble("stairs.fail-chance", 0.15);
         if (random.nextDouble() < failChance) {
             game.finished = true;
-            double commissionPercent = plugin.getConfig().getDouble("stairs.commission-percent", 5);
-            double commission = game.bet * commissionPercent / 100.0;
-            if (commission > 0) depositCommission(player.getUniqueId(), commission);
             player.sendMessage("§c💥 Вы упали на ступени " + (game.currentStep + 1) + "! Потеряно: §f" +
                     plugin.getEconomyManager().format(game.bet));
             playSound(player, "stairs-fall");
@@ -75,8 +81,12 @@ public class StairsManager {
             StairsGUI.updateAllOpen();
             return false;
         }
+
         game.currentStep++;
         playSound(player, "stairs-step");
+        player.sendMessage("§a✔ Ступень §f" + game.currentStep +
+                " §aпройдена! Множитель: §e" + formatMultiplier(MULTIPLIERS[game.currentStep - 1]) +
+                " §a| Забрать: §f" + plugin.getEconomyManager().format(game.bet * MULTIPLIERS[game.currentStep - 1]));
         StairsGUI.updateAllOpen();
         return true;
     }
