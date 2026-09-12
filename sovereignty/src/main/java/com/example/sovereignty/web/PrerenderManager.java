@@ -16,22 +16,41 @@ import java.util.*;
 
 /**
  * Админ-прогрузка чанков для наполнения terrain-кэша.
- * Рендерит чанки напрямую (не через ChunkLoadEvent), что гарантирует попадание в кэш.
+ *
+ * v4.7 — оптимизация под слабый CPU:
+ *   - CHUNKS_PER_TICK с 2 → 1 (по умолчанию, настраивается)
+ *   - TPS-защита: если TPS < min-tps, пропускаем тик
+ *   - Прогресс реже в чат (каждые 100 чанков вместо 50)
  */
 public class PrerenderManager {
 
-    private static final int CHUNKS_PER_TICK = 2;
+    private static final int DEFAULT_CHUNKS_PER_TICK = 1;
+    private static final double DEFAULT_MIN_TPS = 17.0;
     private static final int MAX_RADIUS = 20;
     private static final int MAX_TOTAL_CHUNKS = 100_000;
 
     private final SovereigntyPlugin plugin;
+    private final int chunksPerTick;
+    private final double minTps;
+
     private BukkitTask task;
     private boolean running = false;
     private UUID requesterUuid;
     private int total, done, loaded, skipped, errors;
+    private long skippedTicksLowTps = 0;
 
     public PrerenderManager(SovereigntyPlugin plugin) {
         this.plugin = plugin;
+        if (!plugin.getConfig().isSet("prerender.chunks-per-tick")) {
+            plugin.getConfig().set("prerender.chunks-per-tick", DEFAULT_CHUNKS_PER_TICK);
+            plugin.saveConfig();
+        }
+        if (!plugin.getConfig().isSet("prerender.min-tps")) {
+            plugin.getConfig().set("prerender.min-tps", DEFAULT_MIN_TPS);
+            plugin.saveConfig();
+        }
+        this.chunksPerTick = Math.max(1, plugin.getConfig().getInt("prerender.chunks-per-tick", DEFAULT_CHUNKS_PER_TICK));
+        this.minTps = plugin.getConfig().getDouble("prerender.min-tps", DEFAULT_MIN_TPS);
     }
 
     public boolean isRunning() { return running; }
@@ -95,12 +114,15 @@ public class PrerenderManager {
         this.loaded = 0;
         this.skipped = 0;
         this.errors = 0;
+        this.skippedTicksLowTps = 0;
         this.requesterUuid = admin.getUniqueId();
         this.running = true;
 
         Bukkit.broadcastMessage("§6[Прогрузка] §eНачинаю прогрузку §f" + total + "§e чанков (радиус " +
                 radius + ", уже в кэше: " + cache.size() + ").");
         Bukkit.broadcastMessage("§6[Прогрузка] §7Отмена: §f/country panel prerender cancel");
+        Bukkit.broadcastMessage("§6[Прогрузка] §7Скорость: " + chunksPerTick +
+                " чанк/тик, пауза при TPS < " + minTps);
 
         final List<String> queue = new ArrayList<>(needRender);
 
@@ -111,8 +133,19 @@ public class PrerenderManager {
             public void run() {
                 if (!running) { cancel(); return; }
 
+                // TPS-защита
+                double tps = Bukkit.getTPS()[0];
+                if (tps < minTps) {
+                    skippedTicksLowTps++;
+                    if (skippedTicksLowTps % 100 == 0) {
+                        Bukkit.broadcastMessage("§6[Прогрузка] §eПауза (TPS=" +
+                                String.format("%.1f", tps) + "). Обработано: " + done + "/" + total);
+                    }
+                    return;
+                }
+
                 int processed = 0;
-                while (processed < CHUNKS_PER_TICK && idx < queue.size()) {
+                while (processed < chunksPerTick && idx < queue.size()) {
                     String key = queue.get(idx++);
                     processed++;
                     done++;
@@ -130,10 +163,8 @@ public class PrerenderManager {
                     if (world == null) { skipped++; continue; }
 
                     try {
-                        // Загружаем чанк и СРАЗУ рендерим — не ждём ChunkLoadEvent.
                         Chunk chunk = world.getChunkAt(cx, cz);
                         if (chunk != null) {
-                            // forceRender() делает всё синхронно: рендер + сохранение в БД.
                             boolean ok = plugin.getTerrainRenderer().forceRender(chunk);
                             if (ok) loaded++;
                             else skipped++;
@@ -145,10 +176,10 @@ public class PrerenderManager {
                     }
                 }
 
-                if (done % 50 == 0 || done == total) {
+                if (done % 100 == 0 || done == total) {
                     int percent = (int) (100.0 * done / total);
                     Bukkit.broadcastMessage("§6[Прогрузка] §e" + percent + "% §7(" + done + "/" + total +
-                            ") §a↑" + loaded + " §7пропущено: " + skipped + " §cошибок: " + errors);
+                            ") §a↑" + loaded + " §7проп: " + skipped + " §cош: " + errors);
                 }
                 if (requesterUuid != null && done % 5 == 0) {
                     Player p = Bukkit.getPlayer(requesterUuid);
@@ -175,14 +206,14 @@ public class PrerenderManager {
         task = null;
 
         Bukkit.broadcastMessage("§6[Прогрузка] §a✓ Завершено! Отрендерено: §f" + loaded +
-                "§a чанков (пропущено: " + skipped + ", ошибок: " + errors + ").");
+                "§a чанков (проп: " + skipped + ", ош: " + errors + ").");
         Bukkit.broadcastMessage("§6[Прогрузка] §7Всего в кэше: §f" +
                 plugin.getTerrainRenderer().getCacheSize());
 
         Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
             if (plugin.getWebPanelUploader().isEnabled()) {
                 Bukkit.broadcastMessage("§6[Прогрузка] §eОтправляю обновлённую карту на GitHub...");
-                plugin.getWebPanelUploader().push();
+                plugin.getWebPanelUploader().push(true);
             } else {
                 Bukkit.broadcastMessage("§6[Прогрузка] §7Веб-панель отключена, карта не отправлена.");
             }

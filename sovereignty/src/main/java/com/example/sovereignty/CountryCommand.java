@@ -15,8 +15,7 @@ import java.util.stream.Collectors;
 public class CountryCommand implements CommandExecutor, TabCompleter {
 
     private final SovereigntyPlugin plugin;
-    private final CountryManager countryManager;
-    private final EnergyManager energyManager;
+    private final CountryManager countryManager;    private final EnergyManager energyManager;
     private final EconomyManager economyManager;
     private final CountryGUI countryGUI;
 
@@ -215,6 +214,7 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
             player.sendMessage("§f/country panel status §7— статус веб-панели и кэша");
             player.sendMessage("§f/country panel prerender <радиус> §7— прогрузить чанки вокруг всех стран");
             player.sendMessage("§f/country panel prerender cancel §7— отменить прогрузку");
+            player.sendMessage("§f/country panel cache reset §7— очистить кэш terrain-карты");
             return true;
         }
 
@@ -226,7 +226,7 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
                 }
                 player.sendMessage("§eОтправляю данные и карту на GitHub...");
                 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    plugin.getWebPanelUploader().push();
+                    plugin.getWebPanelUploader().push(true);
                     Bukkit.getScheduler().runTask(plugin, () ->
                             player.sendMessage("§aГотово. Проверьте логи сервера."));
                 });
@@ -245,6 +245,21 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
                                 ? "идёт (" + plugin.getPrerenderManager().getDone() + "/" +
                                   plugin.getPrerenderManager().getTotal() + ")"
                                 : "не идёт"));
+                return true;
+            }
+            case "cache" -> {
+                if (args.length < 3 || !args[2].equalsIgnoreCase("reset")) {
+                    player.sendMessage("§cИспользование: /country panel cache reset");
+                    player.sendMessage("§7Удаляет весь terrain-кэш из БД и памяти.");
+                    player.sendMessage("§7После этого карта перерисуется при обходе чанков игроками,");
+                    player.sendMessage("§7либо при следующем /country panel prerender.");
+                    return true;
+                }
+                player.sendMessage("§eОчищаю terrain-кэш...");
+                int deleted = plugin.getTerrainRenderer().clearCache();
+                player.sendMessage("§aКэш очищен: §f" + deleted + "§a записей удалено из БД.");
+                player.sendMessage("§7Кэш в памяти тоже сброшен.");
+                player.sendMessage("§7Используйте §f/country panel prerender <радиус>§7, чтобы перерисовать.");
                 return true;
             }
             case "prerender" -> {
@@ -557,7 +572,7 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
         String country = invite.countryName;
         if (!countryManager.countryExists(country)) { player.sendMessage("§cСтрана больше не существует."); plugin.getInviteManager().removeInvite(player.getUniqueId()); return; }
         if (countryManager.getCountryName(player.getUniqueId()) != null) { player.sendMessage("§cУ вас уже есть своя страна."); plugin.getInviteManager().removeInvite(player.getUniqueId()); return; }
-        if (countryManager.isCoRuler(player.getUniqueId(), country)) { player.sendMessage("§cВы уже соправитель."); plugin.getInviteManager().removeInvite(player.getUniqueId()); return; }
+            if (countryManager.isCoRuler(player.getUniqueId(), country)) { player.sendMessage("§cВы уже соправитель."); plugin.getInviteManager().removeInvite(player.getUniqueId()); return; }
         countryManager.addCoRuler(country, player.getUniqueId());
         plugin.getInviteManager().removeInvite(player.getUniqueId());
         player.sendMessage("§aВы стали соправителем страны " + country + "!");
@@ -599,7 +614,7 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
             if (args[0].equalsIgnoreCase("pact")) return List.of("trade","military","defense","nonaggression");
             if (args[0].equalsIgnoreCase("top")) return List.of("claims","bank","energy");
             if (args[0].equalsIgnoreCase("court")) return List.of("file","admin");
-            if (args[0].equalsIgnoreCase("panel")) return List.of("push","status","prerender");
+            if (args[0].equalsIgnoreCase("panel")) return List.of("push","status","prerender","cache");
             if (args[0].equalsIgnoreCase("ally") || args[0].equalsIgnoreCase("enemy") || args[0].equalsIgnoreCase("neutral") ||
                     args[0].equalsIgnoreCase("invite") || args[0].equalsIgnoreCase("kick"))
                 return Bukkit.getOnlinePlayers().stream().map(Player::getName).filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase())).collect(Collectors.toList());
@@ -612,6 +627,9 @@ public class CountryCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("panel") && args[1].equalsIgnoreCase("prerender")) {
             return List.of("5", "10", "15", "cancel");
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("panel") && args[1].equalsIgnoreCase("cache")) {
+            return List.of("reset");
         }
         return List.of();
     }

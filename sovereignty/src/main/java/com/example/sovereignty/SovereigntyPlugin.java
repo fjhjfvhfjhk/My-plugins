@@ -54,19 +54,17 @@ public final class SovereigntyPlugin extends JavaPlugin {
     private ExternalDataLoader externalDataLoader;
     private JobsIntegration jobsIntegration;
 
+    // v3.1
+    private OnlineHistoryManager onlineHistoryManager;
+    private CountrySnapshotManager countrySnapshotManager;
+
     private final Set<UUID> autoClaimPlayers = new HashSet<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         saveResource("webpanel.yml", false);
-
-        // Копируем шаблон импорта при первом запуске (не перезапишет существующий)
-        try {
-            saveResource("player_stats_import.yml", false);
-        } catch (IllegalArgumentException ignored) {
-            // ресурс не найден — пропускаем
-        }
+        try { saveResource("player_stats_import.yml", false); } catch (IllegalArgumentException ignored) {}
 
         this.databaseManager = new DatabaseManager(this);
         this.energyManager = new EnergyManager(this, databaseManager);
@@ -92,12 +90,15 @@ public final class SovereigntyPlugin extends JavaPlugin {
         this.webPanelUploader = new WebPanelUploader(this);
         this.prerenderManager = new PrerenderManager(this);
 
+        // v3.1
+        this.onlineHistoryManager = new OnlineHistoryManager(this, databaseManager);
+        this.countrySnapshotManager = new CountrySnapshotManager(this, databaseManager, countryManager);
+
         this.playerStatsManager = new PlayerStatsManager(this, databaseManager);
         this.playerStatsListener = new PlayerStatsListener(this, playerStatsManager);
         this.externalDataLoader = new ExternalDataLoader(this);
         this.jobsIntegration = new JobsIntegration(this);
 
-        // Импорт из player_stats_import.yml (если есть)
         playerStatsManager.importFromYaml();
 
         if (!economyManager.isEnabled()) {
@@ -166,6 +167,10 @@ public final class SovereigntyPlugin extends JavaPlugin {
         eventManager.start();
         courtManager.startAutoClose();
 
+        // v3.1: online history + snapshots
+        onlineHistoryManager.start();
+        countrySnapshotManager.start();
+
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             energyManager.regenAllOnline();
             energyManager.tickBoosts();
@@ -173,7 +178,7 @@ public final class SovereigntyPlugin extends JavaPlugin {
 
         webPanelUploader.start();
 
-        getLogger().info("Sovereignty v3.0 включён (с веб-панелью, статистикой игроков и экспортом).");
+        getLogger().info("Sovereignty v3.1 включён (online history, snapshots, hash-colors).");
     }
 
     @Override
@@ -181,6 +186,8 @@ public final class SovereigntyPlugin extends JavaPlugin {
         if (prerenderManager != null) prerenderManager.cancel();
         if (webPanelUploader != null) webPanelUploader.stop();
         if (terrainRenderer != null) terrainRenderer.shutdown();
+        if (onlineHistoryManager != null) onlineHistoryManager.stop();
+        if (countrySnapshotManager != null) countrySnapshotManager.stop();
         if (energyManager != null) energyManager.saveAll();
         if (scienceManager != null) scienceManager.saveAll();
         if (databaseManager != null) databaseManager.close();
@@ -228,4 +235,6 @@ public final class SovereigntyPlugin extends JavaPlugin {
     public PlayerStatsManager getPlayerStatsManager() { return playerStatsManager; }
     public ExternalDataLoader getExternalDataLoader() { return externalDataLoader; }
     public JobsIntegration getJobsIntegration() { return jobsIntegration; }
+    public OnlineHistoryManager getOnlineHistoryManager() { return onlineHistoryManager; }
+    public CountrySnapshotManager getCountrySnapshotManager() { return countrySnapshotManager; }
 }

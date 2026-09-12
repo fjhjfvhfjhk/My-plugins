@@ -1,11 +1,12 @@
 package com.example.sovereignty.web;
 
 import com.example.sovereignty.SovereigntyPlugin;
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
-import org.bukkit.block.data.BlockData;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -26,32 +27,30 @@ import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Рендерит terrain каждого загруженного чанка с настоящим relief-шейдингом,
- * похожим на Xaero Map:
- *   - склоновая подсветка (солнце с северо-запада)
- *   - глубина воды (глубоко = тёмный, мелко = яркий)
- *   - микро-вариация (шум для травы/листвы)
- *   - жёсткое затенение по высоте
+ * Рендерит terrain каждого загруженного чанка.
+ *
+ * v4.9 — фикс cache invalidation + ручная очистка:
+ *   - checkCacheVersion() вызывается ПЕРВЫМ, ключ не создаётся через addDefault.
+ *   - CACHE_VERSION = 3, чтобы форсировать очистку у тех, у кого стоит 2.
+ *   - Добавлен public clearCache() для /country panel cache reset.
  */
 public class TerrainRenderer implements Listener {
 
-    /** Сколько пикселей на 1 блок. 1 = Xaero при отдалении, 2-3 = Xaero при приближении. */
     public static final int PIXELS_PER_BLOCK = 2;
     public static final int CHUNK_SIZE = 16;
     public static final int IMG_SIZE = CHUNK_SIZE * PIXELS_PER_BLOCK;
 
-    private static final int BATCH_PER_TICK = 5;
+    private static final int CACHE_VERSION = 3;
 
-    // Настройки высот для шейдинга
+    private final int batchPerTick;
+    private final double minTps;
+    private final boolean biomeTint;
+
     private static final int MIN_Y = 40;
     private static final int MAX_Y = 220;
     private static final float HEIGHT_SHADE_MIN = 0.45f;
     private static final float HEIGHT_SHADE_MAX = 1.35f;
-
-    // Сила склоновой подсветки (Xaero ~0.25)
     private static final float SLOPE_STRENGTH = 0.22f;
-
-    // Максимальная глубина воды для расчёта
     private static final int MAX_WATER_DEPTH = 20;
 
     private static final int MAX_CACHED_CHUNKS = 200_000;
@@ -65,12 +64,81 @@ public class TerrainRenderer implements Listener {
     private BukkitTask cleanerTask;
 
     private int newChunksSinceLastPush = 0;
+    private long skippedTicksLowTps = 0;
 
     public TerrainRenderer(SovereigntyPlugin plugin) {
         this.plugin = plugin;
+
+        checkCacheVersion();
+
+        addDefault("terrain-render.batch-per-tick", 2);
+        addDefault("terrain-render.min-tps", 15.0);
+        addDefault("terrain-render.biome-tint", true);
+
+        this.batchPerTick = Math.max(1, plugin.getConfig().getInt("terrain-render.batch-per-tick", 2));
+        this.minTps = plugin.getConfig().getDouble("terrain-render.min-tps", 15.0);
+        this.biomeTint = plugin.getConfig().getBoolean("terrain-render.biome-tint", true);
+
+        plugin.getLogger().info("[TerrainRenderer] batch=" + batchPerTick +
+                " min-tps=" + minTps + " biome-tint=" + biomeTint +
+                " cache-version=" + plugin.getConfig().getInt("terrain-render.cache-version-db", 0));
+
         loadAllFromDatabase();
         startProcessor();
         startCleaner();
+    }
+
+    private void addDefault(String path, Object value) {
+        if (!plugin.getConfig().isSet(path)) {
+            plugin.getConfig().set(path, value);
+            plugin.saveConfig();
+        }
+    }
+
+    private void checkCacheVersion() {
+        int dbVersion = plugin.getConfig().getInt("terrain-render.cache-version-db", 0);
+
+        plugin.getLogger().info("[TerrainCache] Проверка версии: db=" + dbVersion +
+                ", текущая=" + CACHE_VERSION);
+
+        if (dbVersion >= CACHE_VERSION) return;
+
+        plugin.getLogger().warning("[TerrainCache] Обновление формата рендера (" +
+                dbVersion + " → " + CACHE_VERSION + "). Очищаю кэш для перерисовки.");
+
+        int deleted = 0;
+        try (PreparedStatement ps = plugin.getDatabaseManager().getConnection()
+                .prepareStatement("DELETE FROM terrain_cache")) {
+            deleted = ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("[TerrainCache] Ошибка очистки: " + e.getMessage());
+        }
+
+        plugin.getLogger().warning("[TerrainCache] Удалено " + deleted + " старых записей.");
+
+        plugin.getConfig().set("terrain-render.cache-version-db", CACHE_VERSION);
+        plugin.saveConfig();
+    }
+
+    /**
+     * Ручная очистка terrain-кэша (для /country panel cache reset).
+     * Удаляет все записи из БД, чистит память, сбрасывает счётчики.
+     * Соединение БД НЕ закрывает.
+     */
+    public int clearCache() {
+        int deleted = 0;
+        try (PreparedStatement ps = plugin.getDatabaseManager().getConnection()
+                .prepareStatement("DELETE FROM terrain_cache")) {
+            deleted = ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("[TerrainCache] Ошибка очистки: " + e.getMessage());
+        }
+        cache.clear();
+        pending.clear();
+        queue.clear();
+        newChunksSinceLastPush = 0;
+        plugin.getLogger().warning("[TerrainCache] Кэш очищен вручную: удалено " + deleted + " записей.");
+        return deleted;
     }
 
     // ==================== БД ====================
@@ -101,8 +169,7 @@ public class TerrainRenderer implements Listener {
         }
 
         long elapsed = System.currentTimeMillis() - startTime;
-        plugin.getLogger().info("[TerrainCache] Загружено " + count + " чанков за " + elapsed + " мс (размер " +
-                IMG_SIZE + "×" + IMG_SIZE + ").");
+        plugin.getLogger().info("[TerrainCache] Загружено " + count + " чанков за " + elapsed + " мс.");
     }
 
     private void saveToDatabase(String world, int cx, int cz, BufferedImage img) {
@@ -122,7 +189,7 @@ public class TerrainRenderer implements Listener {
                 ps.executeUpdate();
             }
         } catch (Exception e) {
-            plugin.getLogger().warning("[TerrainCache] Ошибка сохранения чанка " + world + ":" + cx + ":" + cz +
+            plugin.getLogger().warning("[TerrainCache] Ошибка сохранения " + world + ":" + cx + ":" + cz +
                     " — " + e.getMessage());
         }
     }
@@ -167,8 +234,21 @@ public class TerrainRenderer implements Listener {
         processorTask = new BukkitRunnable() {
             @Override
             public void run() {
+                if (queue.isEmpty()) return;
+
+                double tps = Bukkit.getTPS()[0];
+                if (tps < minTps) {
+                    skippedTicksLowTps++;
+                    if (skippedTicksLowTps % 100 == 0) {
+                        plugin.getLogger().info("[TerrainRenderer] Пропущено (TPS=" +
+                                String.format("%.1f", tps) + "): " + skippedTicksLowTps +
+                                ", в очереди: " + queue.size());
+                    }
+                    return;
+                }
+
                 int processed = 0;
-                while (processed < BATCH_PER_TICK && !queue.isEmpty()) {
+                while (processed < batchPerTick && !queue.isEmpty()) {
                     Chunk chunk = queue.poll();
                     if (chunk == null) break;
                     if (!chunk.isLoaded()) {
@@ -249,18 +329,18 @@ public class TerrainRenderer implements Listener {
         }
     }
 
-    // ==================== РЕНДЕР ЧАНКА С RELIEF-ШЕЙДИНГОМ ====================
+    // ==================== РЕНДЕР ЧАНКА ====================
 
     private void renderChunk(Chunk chunk) {
         World world = chunk.getWorld();
         int baseX = chunk.getX() * CHUNK_SIZE;
         int baseZ = chunk.getZ() * CHUNK_SIZE;
 
-        // 1. Собираем матрицу высот и материалов (16×16, включая соседей для склона)
-        int gridSize = CHUNK_SIZE + 2; // с 1-блочным ободком для расчёта склона
+        int gridSize = CHUNK_SIZE + 2;
         int[][] heights = new int[gridSize][gridSize];
         Material[][] materials = new Material[gridSize][gridSize];
         int[][] waterDepths = new int[gridSize][gridSize];
+        String[][] biomeKeys = biomeTint ? new String[gridSize][gridSize] : null;
 
         for (int gx = 0; gx < gridSize; gx++) {
             for (int gz = 0; gz < gridSize; gz++) {
@@ -273,6 +353,11 @@ public class TerrainRenderer implements Listener {
                     materials[gx][gz] = top.getType();
                     waterDepths[gx][gz] = top.getType() == Material.WATER
                             ? measureWaterDepth(world, wx, y, wz) : 0;
+
+                    if (biomeTint) {
+                        Biome biome = world.getBiome(wx, y, wz);
+                        biomeKeys[gx][gz] = biome.getKey().toString();
+                    }
                 } catch (Exception e) {
                     heights[gx][gz] = MIN_Y;
                     materials[gx][gz] = Material.STONE;
@@ -280,7 +365,6 @@ public class TerrainRenderer implements Listener {
             }
         }
 
-        // 2. Создаём изображение — каждый блок = PIXELS_PER_BLOCK пикселей
         BufferedImage img = new BufferedImage(IMG_SIZE, IMG_SIZE, BufferedImage.TYPE_INT_RGB);
 
         for (int gx = 1; gx <= CHUNK_SIZE; gx++) {
@@ -289,50 +373,39 @@ public class TerrainRenderer implements Listener {
                 Material mat = materials[gx][gz];
                 Color baseColor = colorOf(mat);
 
-                // 2.1. Высотная подсветка
+                if (biomeTint) {
+                    Color tinted = applyBiomeTint(mat, biomeKeys[gx][gz]);
+                    if (tinted != null) baseColor = tinted;
+                }
+
                 float heightShade = shadeForHeight(y);
 
-                // 2.2. Склоновая подсветка (солнце с северо-запада: свет идёт на юго-восток)
-                // Считаем разницу высот с соседями по X и Z.
                 int yWest = heights[gx - 1][gz];
                 int yEast = heights[gx + 1][gz];
                 int yNorth = heights[gx][gz - 1];
                 int ySouth = heights[gx][gz + 1];
 
-                float slopeX = (yEast - yWest); // + = спуск на восток, - = спуск на запад
-                float slopeZ = (ySouth - yNorth); // + = спуск на юг, - = спуск на север
+                float slopeX = (yEast - yWest);
+                float slopeZ = (ySouth - yNorth);
 
-                // Свет с северо-запада: если блок ниже соседа на востоке/юге — он в тени склона
-                // Если он выше соседей на западе/севере — на нём свет
                 float slopeShade = 1.0f
                         - slopeX * SLOPE_STRENGTH * 0.15f
                         - slopeZ * SLOPE_STRENGTH * 0.15f;
 
-                // 2.3. Микро-вариация (шум) для органичности
                 float noise = 1.0f + ((gx * 31 + gz * 17) % 11 - 5) * 0.012f;
 
-                // 2.4. Глубина воды
-                float depthShade = 1.0f;
                 Color finalColor = baseColor;
                 int depth = waterDepths[gx][gz];
                 if (depth > 0) {
-                    float t = Math.min(1f, depth / (float) MAX_WATER_DEPTH);
-                    // Мелкая вода — бирюзовая, глубокая — тёмно-синяя
-                    int r = (int) (0x60 * (1 - t) + 0x0a * t);
-                    int g = (int) (0xc0 * (1 - t) + 0x30 * t);
-                    int b = (int) (0xe0 * (1 - t) + 0x60 * t);
-                    finalColor = new Color(clamp(r), clamp(g), clamp(b));
-                    depthShade = 1.0f;
+                    finalColor = waterColor(depth);
                 }
 
-                // 2.5. Итоговый цвет
-                float shade = heightShade * slopeShade * noise * depthShade;
+                float shade = heightShade * slopeShade * noise;
                 int r = clamp((int) (finalColor.getRed() * shade));
                 int g = clamp((int) (finalColor.getGreen() * shade));
                 int b = clamp((int) (finalColor.getBlue() * shade));
                 int rgb = (r << 16) | (g << 8) | b;
 
-                // 2.6. Заполняем PIXELS_PER_BLOCK × PIXELS_PER_BLOCK пикселей
                 int px = (gx - 1) * PIXELS_PER_BLOCK;
                 int pz = (gz - 1) * PIXELS_PER_BLOCK;
                 for (int ox = 0; ox < PIXELS_PER_BLOCK; ox++) {
@@ -351,7 +424,6 @@ public class TerrainRenderer implements Listener {
         newChunksSinceLastPush++;
     }
 
-    /** Возвращает глубину воды, если верхний блок — вода. */
     private int measureWaterDepth(World world, int x, int topY, int z) {
         int depth = 0;
         int y = topY;
@@ -368,6 +440,75 @@ public class TerrainRenderer implements Listener {
         return depth;
     }
 
+    private static Color waterColor(int depth) {
+        float t = (float) Math.sqrt(Math.min(1.0, depth / (double) MAX_WATER_DEPTH));
+        int r = (int) (0x7F * (1 - t) + 0x0B * t);
+        int g = (int) (0xE8 * (1 - t) + 0x23 * t);
+        int b = (int) (0xEE * (1 - t) + 0x4D * t);
+        return new Color(clamp(r), clamp(g), clamp(b));
+    }
+
+    private static Color applyBiomeTint(Material mat, String biomeKey) {
+        if (biomeKey == null) return null;
+        if (!isTintable(mat)) return null;
+
+        String b = biomeKey.startsWith("minecraft:") ? biomeKey.substring(10) : biomeKey;
+
+        if (b.equals("snowy_plains") || b.equals("ice_spikes") || b.equals("snowy_beach")
+                || b.equals("snowy_slopes") || b.equals("frozen_peaks")
+                || b.equals("jagged_peaks") || b.equals("frozen_river")
+                || b.equals("snowy_taiga") || b.equals("grove")) {
+            return new Color(0x80B497);
+        }
+        if (b.equals("taiga") || b.equals("old_growth_pine_taiga")
+                || b.equals("old_growth_spruce_taiga")) {
+            return new Color(0x4F7B37);
+        }
+        if (b.equals("dark_forest") || b.equals("pale_garden")) {
+            return new Color(0x507A32);
+        }
+        if (b.equals("jungle") || b.equals("sparse_jungle") || b.equals("bamboo_jungle")) {
+            return new Color(0x30BB0B);
+        }
+        if (b.equals("savanna") || b.equals("savanna_plateau") || b.equals("windswept_savanna")) {
+            return new Color(0xBFB755);
+        }
+        if (b.equals("desert") || b.equals("badlands") || b.equals("eroded_badlands")
+                || b.equals("wooded_badlands")) {
+            return new Color(0xC2B280);
+        }
+        if (b.equals("swamp") || b.equals("mangrove_swamp")) {
+            return new Color(0x6A7039);
+        }
+        if (b.equals("mushroom_fields")) {
+            return new Color(0x9E9C7A);
+        }
+        if (b.equals("cherry_grove")) {
+            return new Color(0xB6D57A);
+        }
+        if (b.equals("meadow")) {
+            return new Color(0x83BB6D);
+        }
+        if (b.equals("birch_forest") || b.equals("old_growth_birch_forest")) {
+            return new Color(0x88BB67);
+        }
+        if (b.equals("windswept_hills") || b.equals("windswept_forest")
+                || b.equals("windswept_gravelly_hills")) {
+            return new Color(0x6B8F54);
+        }
+        return null;
+    }
+
+    private static boolean isTintable(Material m) {
+        if (m == Material.GRASS_BLOCK) return true;
+        if (m == Material.SHORT_GRASS || m == Material.TALL_GRASS) return true;
+        if (m == Material.FERN || m == Material.LARGE_FERN) return true;
+        if (m == Material.VINE) return true;
+        String n = m.name();
+        if (n.endsWith("_LEAVES")) return true;
+        return false;
+    }
+
     private float shadeForHeight(int y) {
         if (y <= MIN_Y) return HEIGHT_SHADE_MIN;
         if (y >= MAX_Y) return HEIGHT_SHADE_MAX;
@@ -375,7 +516,7 @@ public class TerrainRenderer implements Listener {
         return HEIGHT_SHADE_MIN + t * (HEIGHT_SHADE_MAX - HEIGHT_SHADE_MIN);
     }
 
-    private int clamp(int v) {
+    private static int clamp(int v) {
         if (v < 0) return 0;
         if (v > 255) return 255;
         return v;

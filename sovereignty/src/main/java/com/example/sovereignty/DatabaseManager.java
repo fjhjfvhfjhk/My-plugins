@@ -13,12 +13,15 @@ public class DatabaseManager {
         connect();
     }
 
-    private void connect() {
+    private synchronized void connect() {
         File dataFolder = plugin.getDataFolder();
         if (!dataFolder.exists()) dataFolder.mkdirs();
         File dbFile = new File(dataFolder, "sovereignty.db");
         String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
         try {
+            if (connection != null && !connection.isClosed()) {
+                try { connection.close(); } catch (SQLException ignored) {}
+            }
             Class.forName("org.sqlite.JDBC");
             connection = DriverManager.getConnection(url);
             createTables();
@@ -30,7 +33,7 @@ public class DatabaseManager {
         }
     }
 
-    public Connection getConnection() {
+    public synchronized Connection getConnection() {
         try {
             if (connection == null || connection.isClosed()) {
                 plugin.getLogger().warning("Соединение с БД закрыто, переподключаюсь...");
@@ -178,7 +181,6 @@ public class DatabaseManager {
             ON terrain_cache(last_update)
         """);
 
-        // НОВАЯ ТАБЛИЦА: статистика игроков для веб-панели
         stmt.executeUpdate("""
             CREATE TABLE IF NOT EXISTS player_stats (
                 uuid TEXT PRIMARY KEY,
@@ -189,6 +191,29 @@ public class DatabaseManager {
                 last_x REAL,
                 last_y REAL,
                 last_z REAL
+            )
+        """);
+
+        // v3.1: история онлайна — для графика за 24 часа
+        stmt.executeUpdate("""
+            CREATE TABLE IF NOT EXISTS online_history (
+                timestamp BIGINT PRIMARY KEY,
+                count INTEGER NOT NULL
+            )
+        """);
+
+        stmt.executeUpdate("""
+            CREATE INDEX IF NOT EXISTS idx_online_history_ts
+            ON online_history(timestamp)
+        """);
+
+        // v3.1: ежедневные снимки — для расчёта активности страны
+        stmt.executeUpdate("""
+            CREATE TABLE IF NOT EXISTS country_snapshots (
+                country_name TEXT NOT NULL,
+                day_start BIGINT NOT NULL,
+                claims INTEGER NOT NULL,
+                PRIMARY KEY (country_name, day_start)
             )
         """);
 
@@ -258,7 +283,7 @@ public class DatabaseManager {
         return false;
     }
 
-    public void close() {
+    public synchronized void close() {
         try {
             if (connection != null && !connection.isClosed()) connection.close();
         } catch (SQLException e) {
