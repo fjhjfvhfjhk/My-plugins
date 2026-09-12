@@ -8,9 +8,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-/**
- * Хранит награды за головы игроков.
- */
 public class BountyManager {
 
     private final BountyPlugin plugin;
@@ -66,11 +63,13 @@ public class BountyManager {
     public void setBounty(UUID target, UUID setter, double amount) {
         bounties.put(target, new BountyEntry(amount, setter));
         save();
+        if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markDirty();
     }
 
     public void removeBounty(UUID target) {
         bounties.remove(target);
         save();
+        if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markDirty();
     }
 
     public BountyEntry getBounty(UUID target) {

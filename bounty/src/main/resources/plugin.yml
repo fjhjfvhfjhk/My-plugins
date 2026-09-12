@@ -1,10 +1,11 @@
 name: Bounty
-version: 1.0.0
+version: 1.1.0
 main: com.example.bounty.BountyPlugin
 api-version: '1.21'
 description: Система наёмников — награды за головы игроков
 
 depend: [Vault]
+softdepend: [Sovereignty]
 
 commands:
   bounty:

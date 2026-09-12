@@ -22,7 +22,11 @@ public class AuctionManager {
         if (minutes > maxMinutes) minutes = maxMinutes;
         if (minutes < 1) minutes = plugin.getConfig().getInt("default-auction-time", 60);
         long endTime = System.currentTimeMillis() + minutes * 60_000L;
-        return db.createAuction(seller.getUniqueId(), item, startPrice, endTime);
+        int id = db.createAuction(seller.getUniqueId(), item, startPrice, endTime);
+        if (id != -1 && plugin.getPanelExporter() != null) {
+            plugin.getPanelExporter().markDirty();
+        }
+        return id;
     }
 
     public boolean placeBid(Player bidder, int auctionId, double amount) {
@@ -38,7 +42,6 @@ public class AuctionManager {
             return false;
         }
 
-        // Возвращаем деньги предыдущему лидеру
         if (auction.getCurrentBidder() != null) {
             Player oldBidder = Bukkit.getPlayer(auction.getCurrentBidder());
             if (oldBidder != null && oldBidder.isOnline()) {
@@ -49,10 +52,8 @@ public class AuctionManager {
             }
         }
 
-        // Списываем деньги у нового лидера
         eco.withdraw(bidder, amount);
 
-        // Обновляем аукцион
         boolean updated = db.updateBid(auctionId, amount, bidder.getUniqueId());
         if (updated) {
             auction.setCurrentPrice(amount);
@@ -60,16 +61,15 @@ public class AuctionManager {
             bidder.sendMessage(plugin.getConfig().getString("messages.bid-placed", "§aСтавка принята!")
                     .replace("%id%", String.valueOf(auctionId))
                     .replace("%price%", eco.format(amount)));
+            if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markDirty();
             return true;
         } else {
-            // Если не обновилось – возвращаем деньги
             eco.deposit(bidder, amount);
             return false;
         }
     }
 
     public boolean placeBidItem(Player bidder, int auctionId, String materialName, int amount) {
-        // Реализация будет позже – для простоты пока пропустим
         bidder.sendMessage("§cСтавки предметами пока не реализованы.");
         return false;
     }
@@ -85,12 +85,12 @@ public class AuctionManager {
             player.sendMessage(plugin.getConfig().getString("messages.auction-cancel-no-bids", "§cНельзя отменить, есть ставки."));
             return false;
         }
-        // Возвращаем предмет продавцу
         ItemStack item = auction.getItem();
         player.getInventory().addItem(item);
         db.setStatus(auctionId, "cancelled");
         player.sendMessage(plugin.getConfig().getString("messages.auction-cancelled", "§cАукцион отменён.")
                 .replace("%id%", String.valueOf(auctionId)));
+        if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markDirty();
         return true;
     }
 
@@ -112,7 +112,6 @@ public class AuctionManager {
         double commissionPercent = plugin.getConfig().getDouble("commission-percent", 0.0);
 
         if (winnerUuid == null) {
-            // Нет ставок – возвращаем предмет продавцу
             Player seller = Bukkit.getPlayer(sellerUuid);
             if (seller != null && seller.isOnline()) {
                 seller.getInventory().addItem(auction.getItem());
@@ -120,10 +119,10 @@ public class AuctionManager {
                         .replace("%id%", String.valueOf(id)));
             }
             db.setStatus(id, "ended");
+            if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markDirty();
             return;
         }
 
-        // Передаём предмет победителю
         Player winner = Bukkit.getPlayer(winnerUuid);
         if (winner != null && winner.isOnline()) {
             winner.getInventory().addItem(auction.getItem());
@@ -131,15 +130,9 @@ public class AuctionManager {
                     .replace("%id%", String.valueOf(id))
                     .replace("%price%", plugin.getEconomyManager().format(finalPrice)));
         } else {
-            // Победитель оффлайн – сохраняем предмет в память? Пока просто дропнем на землю или выдадим при входе.
-            // Для простоты: положим в сундук на спавне? Лучше выдадим при входе – реализуем в слушателе.
-            // Но для упрощения – просто дропнем в мир победителя, если он оффлайн, но у нас нет его локации.
-            // Поэтому сохраняем в отдельную таблицу для офлайн-выдачи (pending items) – пока не реализовано.
-            // Для MVP: пропускаем, предмет останется в БД? Нет, он удаляется. Просто предупредим.
             plugin.getLogger().warning("Победитель аукциона #" + id + " оффлайн, предмет не выдан.");
         }
 
-        // Передаём деньги продавцу (минус комиссия)
         double sellerPayout = finalPrice * (1 - commissionPercent / 100.0);
         Player seller = Bukkit.getPlayer(sellerUuid);
         if (seller != null && seller.isOnline()) {
@@ -148,15 +141,15 @@ public class AuctionManager {
                     .replace("%id%", String.valueOf(id))
                     .replace("%price%", plugin.getEconomyManager().format(sellerPayout)));
         } else {
-            // Продавец оффлайн – зачисляем на баланс (Vault поддерживает OfflinePlayer)
             plugin.getEconomyManager().deposit(Bukkit.getOfflinePlayer(sellerUuid), sellerPayout);
         }
 
         db.setStatus(id, "ended");
-        // Широковещательное сообщение о завершении
         Bukkit.broadcastMessage(plugin.getConfig().getString("messages.auction-ended-broadcast", "§6Аукцион #%id% завершён! Победитель: %winner%, цена: %price%.")
                 .replace("%id%", String.valueOf(id))
                 .replace("%winner%", Bukkit.getOfflinePlayer(winnerUuid).getName())
                 .replace("%price%", plugin.getEconomyManager().format(finalPrice)));
+
+        if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markDirty();
     }
 }

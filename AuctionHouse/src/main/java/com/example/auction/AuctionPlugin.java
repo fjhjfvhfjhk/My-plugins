@@ -8,6 +8,7 @@ public final class AuctionPlugin extends JavaPlugin {
     private DatabaseManager databaseManager;
     private AuctionManager auctionManager;
     private EconomyManager economyManager;
+    private PanelExporter panelExporter;
 
     @Override
     public void onEnable() {
@@ -23,7 +24,8 @@ public final class AuctionPlugin extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new AuctionListener(this), this);
 
-        // Запуск таймера проверки аукционов каждые 20 тиков (1 сек)
+        this.panelExporter = new PanelExporter(this);
+
         getServer().getScheduler().runTaskTimer(this, () -> auctionManager.checkExpiredAuctions(), 20L, 20L);
 
         getLogger().info("AuctionHouse включён.");
@@ -31,6 +33,7 @@ public final class AuctionPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (panelExporter != null) panelExporter.shutdown();
         if (databaseManager != null) databaseManager.close();
         getLogger().info("AuctionHouse выключен.");
     }
@@ -39,4 +42,5 @@ public final class AuctionPlugin extends JavaPlugin {
     public DatabaseManager getDatabaseManager() { return databaseManager; }
     public AuctionManager getAuctionManager() { return auctionManager; }
     public EconomyManager getEconomyManager() { return economyManager; }
+    public PanelExporter getPanelExporter() { return panelExporter; }
 }
