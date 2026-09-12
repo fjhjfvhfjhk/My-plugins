@@ -13,7 +13,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.*;
 
 /**
- * GUI ввода ставки. Кнопки ±10 / ±100 / ±1000, кнопка "Максимум", "Повторить".
+ * GUI ввода ставки. Кнопки ±10 / ±100 / ±1000, «Максимум», «Повторить».
+ * v2.2: добавлены игры crash и upgrade_chance.
  */
 public class BetInputGUI implements Listener {
 
@@ -28,7 +29,6 @@ public class BetInputGUI implements Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    /** Открывает GUI ввода ставки для конкретной игры. */
     public void open(Player player, String gameKey, String displayName, double defaultBet) {
         Session s = new Session();
         s.gameKey = gameKey;
@@ -45,7 +45,6 @@ public class BetInputGUI implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, 27, TITLE);
 
-        // Текущая ставка в центре
         inv.setItem(4, item(Material.GOLD_INGOT,
                 "§e💰 Ставка: §f" + plugin.getEconomyManager().format(s.amount),
                 "§7Игра: §f" + s.displayName,
@@ -55,17 +54,14 @@ public class BetInputGUI implements Listener {
                 "§7Используйте кнопки ниже,",
                 "§7чтобы настроить сумму."));
 
-        // Уменьшение
         inv.setItem(9,  item(Material.RED_STAINED_GLASS_PANE, "§c− 1000", "§7Уменьшить на §f1000"));
         inv.setItem(10, item(Material.RED_STAINED_GLASS_PANE, "§c− 100",  "§7Уменьшить на §f100"));
         inv.setItem(11, item(Material.RED_STAINED_GLASS_PANE, "§c− 10",   "§7Уменьшить на §f10"));
 
-        // Увеличение
         inv.setItem(15, item(Material.LIME_STAINED_GLASS_PANE, "§a+ 10",   "§7Увеличить на §f10"));
         inv.setItem(16, item(Material.LIME_STAINED_GLASS_PANE, "§a+ 100",  "§7Увеличить на §f100"));
         inv.setItem(17, item(Material.LIME_STAINED_GLASS_PANE, "§a+ 1000", "§7Увеличить на §f1000"));
 
-        // Нижний ряд
         double lastBet = plugin.getRollData().getLastBet(player.getUniqueId(), s.gameKey);
         if (lastBet > 0 && Math.abs(lastBet - s.amount) > 0.01) {
             inv.setItem(18, item(Material.GOLD_NUGGET, "§e↻ Повторить",
@@ -94,7 +90,6 @@ public class BetInputGUI implements Listener {
         inv.setItem(26, item(Material.BARRIER, "§c← Назад",
                 "§7Закрыть"));
 
-        // Заполняем стеклом
         for (int i = 0; i < inv.getSize(); i++) {
             if (inv.getItem(i) == null) {
                 inv.setItem(i, item(Material.GRAY_STAINED_GLASS_PANE, " ", ""));
@@ -115,9 +110,7 @@ public class BetInputGUI implements Listener {
         return item;
     }
 
-    private void refresh(Player player) {
-        render(player);
-    }
+    private void refresh(Player player) { render(player); }
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
@@ -140,17 +133,10 @@ public class BetInputGUI implements Listener {
             case 17 -> { s.amount += 1000; if (s.amount > balance) s.amount = balance; refresh(player); }
             case 18 -> {
                 double lastBet = plugin.getRollData().getLastBet(player.getUniqueId(), s.gameKey);
-                if (lastBet > 0) {
-                    s.amount = Math.min(lastBet, balance);
-                    refresh(player);
-                }
+                if (lastBet > 0) { s.amount = Math.min(lastBet, balance); refresh(player); }
             }
-            case 20 -> {
-                s.amount = Math.max(1, balance);
-                refresh(player);
-            }
+            case 20 -> { s.amount = Math.max(1, balance); refresh(player); }
             case 22 -> {
-                // Начать игру
                 double bet = s.amount;
                 if (bet <= 0) { player.sendMessage("§cСтавка должна быть положительной."); return; }
                 if (bet > balance) { player.sendMessage("§cНедостаточно денег."); return; }
@@ -170,19 +156,13 @@ public class BetInputGUI implements Listener {
     private void startGame(Player player, String gameKey, double bet) {
         switch (gameKey) {
             case "slots" -> {
-                if (plugin.getSlotsManager().start(player, bet)) {
-                    plugin.getSlotsGUI().open(player);
-                }
+                if (plugin.getSlotsManager().start(player, bet)) plugin.getSlotsGUI().open(player);
             }
             case "wheel" -> {
-                if (plugin.getWheelManager().start(player, bet)) {
-                    plugin.getWheelGUI().open(player);
-                }
+                if (plugin.getWheelManager().start(player, bet)) plugin.getWheelGUI().open(player);
             }
             case "stairs" -> {
-                if (plugin.getStairsManager().start(player, bet)) {
-                    plugin.getStairsGUI().open(player);
-                }
+                if (plugin.getStairsManager().start(player, bet)) plugin.getStairsGUI().open(player);
             }
             case "duel" -> {
                 plugin.getDuelManager().startDuel(player, bet);
@@ -192,8 +172,15 @@ public class BetInputGUI implements Listener {
                 plugin.getGameManager().addBet(player, bet);
                 plugin.getRollGUI().open(player);
             }
+            case "crash" -> {
+                if (plugin.getCrashManager().start(player, bet)) {
+                    plugin.getCrashGUI().open(player);
+                }
+            }
+            case "upgrade_chance" -> {
+                plugin.getUpgradeChanceGUI().open(player, bet);
+            }
             case "mines" -> {
-                // Для мин нужны ещё параметры — открываем GUI мин в режиме ожидания
                 player.sendMessage("§eДля мин укажите параметры командой:");
                 player.sendMessage("§f/roll mines " + (long) bet + " <мины> <размер>");
             }

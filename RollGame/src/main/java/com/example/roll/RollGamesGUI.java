@@ -15,14 +15,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Главное меню RollGame. Клик по игре → BetInputGUI.
+ * Главное меню RollGame.
+ * Клик по игре → BetInputGUI (или сразу GUI для upgrade).
+ * v2.2: добавлены crash (slot 16) и upgrade (slot 17).
  */
 public class RollGamesGUI implements Listener {
 
     private static final String TITLE = "§6🎰 Казино";
 
     private final RollPlugin plugin;
-    private final Map<Integer, String[]> slotGame = new HashMap<>(); // slot → [key, displayName, defaultBet]
+    private final Map<Integer, String[]> slotGame = new HashMap<>();
 
     public RollGamesGUI(RollPlugin plugin) {
         this.plugin = plugin;
@@ -34,7 +36,6 @@ public class RollGamesGUI implements Listener {
         Inventory inv = Bukkit.createInventory(null, 27, TITLE);
         fillEmptyWithGlass(inv);
 
-        // Шапка: баланс + джекпот
         double balance = plugin.getEconomyManager().getBalance(player);
         long jackpot = plugin.getRollData().getJackpot();
         ItemStack header = new ItemStack(Material.GOLD_BLOCK);
@@ -49,7 +50,6 @@ public class RollGamesGUI implements Listener {
         header.setItemMeta(hm);
         inv.setItem(4, header);
 
-        // Игры
         addGame(inv, 10, "slots", "🎰 Слоты",
                 List.of("§7Три барабана, три шанса!",
                         "§7Собери 3 одинаковых — умножь ставку.",
@@ -77,7 +77,7 @@ public class RollGamesGUI implements Listener {
         addGame(inv, 14, "stairs", "🪜 Лестница",
                 List.of("§7Поднимайся по ступеням, множитель растёт.",
                         "§7На каждой ступени: забрать или рискнуть.",
-                        "§aМаксимум x20",
+                        "§aМаксимум x42",
                         "",
                         "§eНажмите, чтобы играть"));
         addGame(inv, 15, "classic", "📊 Классическая рулетка",
@@ -86,8 +86,26 @@ public class RollGamesGUI implements Listener {
                         "§aШанс = ваша ставка / банк",
                         "",
                         "§eНажмите, чтобы играть"));
+        addGame(inv, 16, "crash", "🚀 Crash",
+                List.of("§7Множитель растёт со временем.",
+                        "§7Успей забрать до взрыва!",
+                        "§aМаксимум x100+",
+                        "",
+                        "§eНажмите, чтобы играть"));
 
-        // Статистика / топ
+        // Upgrade — отдельная кнопка (не через BetInputGUI)
+        ItemStack upgrade = new ItemStack(Material.NETHER_STAR);
+        ItemMeta um = upgrade.getItemMeta();
+        um.setDisplayName("§a🔮 Апгрейдер");
+        um.setLore(List.of(
+                "§7Улучшай предметы или крути шанс.",
+                "§7Два режима: Шанс / Предмет.",
+                "",
+                "§eНажмите, чтобы играть"));
+        upgrade.setItemMeta(um);
+        inv.setItem(17, upgrade);
+        slotGame.put(17, new String[]{"__upgrade__", "Апгрейдер", "0"});
+
         ItemStack statsBtn = new ItemStack(Material.BOOK);
         ItemMeta sm = statsBtn.getItemMeta();
         sm.setDisplayName("§e📊 Моя статистика");
@@ -97,7 +115,6 @@ public class RollGamesGUI implements Listener {
         statsBtn.setItemMeta(sm);
         inv.setItem(22, statsBtn);
 
-        // Топ игроков
         ItemStack topBtn = new ItemStack(Material.NETHER_STAR);
         ItemMeta tm = topBtn.getItemMeta();
         tm.setDisplayName("§e📜 Топ игроков");
@@ -107,7 +124,6 @@ public class RollGamesGUI implements Listener {
         topBtn.setItemMeta(tm);
         inv.setItem(20, topBtn);
 
-        // Закрыть
         ItemStack close = new ItemStack(Material.BARRIER);
         ItemMeta cm = close.getItemMeta();
         cm.setDisplayName("§cЗакрыть");
@@ -125,6 +141,8 @@ public class RollGamesGUI implements Listener {
             case "wheel" -> Material.NETHER_STAR;
             case "stairs" -> Material.LADDER;
             case "classic" -> Material.PAPER;
+            case "crash" -> Material.FIREWORK_ROCKET;
+            case "upgrade" -> Material.NETHER_STAR;
             default -> Material.STONE;
         };
         ItemStack icon = new ItemStack(mat);
@@ -162,6 +180,12 @@ public class RollGamesGUI implements Listener {
         if (gameInfo == null) return;
 
         player.closeInventory();
+
+        if ("__upgrade__".equals(gameInfo[0])) {
+            plugin.getUpgradeHubGUI().open(player);
+            return;
+        }
+
         plugin.getBetInputGUI().open(player, gameInfo[0], gameInfo[1], 100);
     }
 }

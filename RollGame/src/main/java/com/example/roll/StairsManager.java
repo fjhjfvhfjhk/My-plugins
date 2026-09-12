@@ -7,26 +7,36 @@ import org.bukkit.entity.Player;
 import java.util.*;
 
 /**
- * Лестница (Crash-style).
+ * Лестница v2.1 — с логированием множителей при старте.
  *
- * Изменения (v2.1):
- *  - 12 ступеней вместо 10;
- *  - fail-chance 15% на каждой ступени (включая первую);
- *  - новые множители; RTP оптимальной игры ≈ 92.4%.
+ * Если в логе увидишь строку [StairsManager] MULTIPLIERS[11]=42.00 — значит
+ * новая версия загружена. Если там 6.50 или 9.60 — на сервере старый jar.
  */
 public class StairsManager {
 
-    /** 12 множителей: 1.10x → 6.50x. */
+    /** 12 ступеней прогрессивного fail. */
+    public static final double[] FAIL_CHANCES = {
+            0.10, 0.13, 0.16, 0.19, 0.22, 0.25,
+            0.28, 0.31, 0.34, 0.37, 0.40, 0.43
+    };
+
+    /** 12 ступеней множителей. Максимум = 42x. */
     public static final double[] MULTIPLIERS = {
-            1.10, 1.25, 1.40, 1.60, 1.85, 2.15,
-            2.50, 3.00, 3.60, 4.40, 5.40, 6.50
+            1.05, 1.20, 1.45, 1.75, 2.25, 3.00,
+            4.20, 6.00, 9.20, 14.50, 24.00, 42.00
     };
 
     private final RollPlugin plugin;
     private final Map<UUID, Game> games = new HashMap<>();
     private final Random random = new Random();
 
-    public StairsManager(RollPlugin plugin) { this.plugin = plugin; }
+    public StairsManager(RollPlugin plugin) {
+        this.plugin = plugin;
+        // Диагностика: пишем в лог, чтобы сразу видеть, что старая версия не крутится.
+        plugin.getLogger().info("[StairsManager] MULTIPLIERS[0]=" + MULTIPLIERS[0] +
+                " ... MULTIPLIERS[11]=" + MULTIPLIERS[11] +
+                " (ожидается 42.00 на конце)");
+    }
 
     public Game getGame(UUID uuid) { return games.get(uuid); }
     public boolean isActive(UUID uuid) {
@@ -40,10 +50,17 @@ public class StairsManager {
             return false;
         }
         if (bet <= 0) { player.sendMessage("§cСумма должна быть положительной."); return false; }
+
         double minBet = plugin.getConfig().getDouble("stairs.min-bet", 0);
         double maxBet = plugin.getConfig().getDouble("stairs.max-bet", 0);
-        if (minBet > 0 && bet < minBet) { player.sendMessage("§cМинимальная ставка: " + plugin.getEconomyManager().format(minBet)); return false; }
-        if (maxBet > 0 && bet > maxBet) { player.sendMessage("§cМаксимальная ставка: " + plugin.getEconomyManager().format(maxBet)); return false; }
+        if (minBet > 0 && bet < minBet) {
+            player.sendMessage("§cМинимальная ставка: " + plugin.getEconomyManager().format(minBet));
+            return false;
+        }
+        if (maxBet > 0 && bet > maxBet) {
+            player.sendMessage("§cМаксимальная ставка: " + plugin.getEconomyManager().format(maxBet));
+            return false;
+        }
 
         if (!plugin.getEconomyManager().withdraw(player, bet)) {
             player.sendMessage(plugin.getConfig().getString("messages.not-enough-money", "§cНедостаточно денег.")
@@ -54,22 +71,26 @@ public class StairsManager {
         Game game = new Game(player.getUniqueId(), bet);
         games.put(player.getUniqueId(), game);
         player.sendMessage("§6🪜 Лестница началась! Ставка: §f" + plugin.getEconomyManager().format(bet));
-        player.sendMessage("§eШагните на первую ступень, чтобы начать. Шанс провала: §f15%§e.");
+        player.sendMessage("§eШагните на первую ступень. Шанс провала: §f" +
+                String.format("%.0f%%", FAIL_CHANCES[0] * 100) + "§e.");
         return true;
     }
 
-    /**
-     * Шаг на следующую ступень. Первый шаг тоже рисковый (fail-chance проверяется всегда).
-     */
     public boolean step(Player player) {
         Game game = games.get(player.getUniqueId());
         if (game == null || game.finished) return false;
-        if (game.currentStep >= MULTIPLIERS.length) { cashout(player); return true; }
 
-        double failChance = plugin.getConfig().getDouble("stairs.fail-chance", 0.15);
+        if (game.currentStep >= MULTIPLIERS.length) {
+            cashout(player);
+            return true;
+        }
+
+        double failChance = FAIL_CHANCES[game.currentStep];
+        int stepNumber = game.currentStep + 1;
+
         if (random.nextDouble() < failChance) {
             game.finished = true;
-            player.sendMessage("§c💥 Вы упали на ступени " + (game.currentStep + 1) + "! Потеряно: §f" +
+            player.sendMessage("§c💥 Вы упали на ступени " + stepNumber + "! Потеряно: §f" +
                     plugin.getEconomyManager().format(game.bet));
             playSound(player, "stairs-fall");
             plugin.getRollData().recordResult(player, "stairs", game.bet, 0, false);
@@ -84,9 +105,22 @@ public class StairsManager {
 
         game.currentStep++;
         playSound(player, "stairs-step");
+
+        double currentMult = MULTIPLIERS[game.currentStep - 1];
+        double nextFail = game.currentStep < FAIL_CHANCES.length ? FAIL_CHANCES[game.currentStep] : 0;
+
         player.sendMessage("§a✔ Ступень §f" + game.currentStep +
-                " §aпройдена! Множитель: §e" + formatMultiplier(MULTIPLIERS[game.currentStep - 1]) +
-                " §a| Забрать: §f" + plugin.getEconomyManager().format(game.bet * MULTIPLIERS[game.currentStep - 1]));
+                " §aпройдена! Множитель: §e" + formatMultiplier(currentMult) +
+                " §a| Забрать: §f" + plugin.getEconomyManager().format(game.bet * currentMult));
+        if (game.currentStep < MULTIPLIERS.length) {
+            player.sendMessage("§7Следующая: провал §c" +
+                    String.format("%.0f%%", nextFail * 100) + "§7, множитель §e" +
+                    formatMultiplier(MULTIPLIERS[game.currentStep]) + "§7.");
+        } else {
+            player.sendMessage("§6§l🏆 МАКСИМУМ! Забирайте §f" +
+                    plugin.getEconomyManager().format(game.bet * currentMult));
+        }
+
         StairsGUI.updateAllOpen();
         return true;
     }
@@ -103,8 +137,7 @@ public class StairsManager {
         double amount = game.bet * mult;
         double commissionPercent = plugin.getConfig().getDouble("stairs.commission-percent", 0);
         double commission = amount * commissionPercent / 100.0;
-        double payout = amount - commission;
-        if (payout < 0) payout = 0;
+        double payout = Math.max(0, amount - commission);
 
         plugin.getEconomyManager().deposit(player, payout);
         if (commission > 0) depositCommission(player.getUniqueId(), commission);

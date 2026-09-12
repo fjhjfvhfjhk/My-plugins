@@ -75,6 +75,19 @@ public class RollCommand implements CommandExecutor, TabCompleter {
                 duelGUI.open(player);
                 return true;
             }
+            case "crash" -> {
+                if (args.length < 2) { player.sendMessage("§cИспользование: /roll crash <ставка>"); return true; }
+                Double amount = parseAmount(player, args[1]);
+                if (amount == null) return true;
+                if (plugin.getCrashManager().start(player, amount)) {
+                    plugin.getCrashGUI().open(player);
+                }
+                return true;
+            }
+            case "upgrade", "upgrader" -> {
+                plugin.getUpgradeHubGUI().open(player);
+                return true;
+            }
             case "mines" -> {
                 if (args.length < 4) {
                     player.sendMessage("§cИспользование: /roll mines <ставка> <мины> <размер>");
@@ -306,7 +319,7 @@ public class RollCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             List<String> options = new ArrayList<>(List.of("menu", "classic", "stats", "jackpot", "bet", "raise",
-                    "duel", "mines", "slots", "wheel", "stairs", "poker", "info", "top", "finish"));
+                    "duel", "crash", "upgrade", "mines", "slots", "wheel", "stairs", "poker", "info", "top", "finish"));
             if (sender.hasPermission("roll.admin")) options.add("cancel");
             return options.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
         }

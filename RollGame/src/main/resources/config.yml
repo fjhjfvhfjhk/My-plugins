@@ -1,14 +1,16 @@
 # ============================================================
-# Конфигурация RollGame
+# Конфигурация RollGame v2.4
 # ============================================================
 #
-# RTP по мини-играм (Return To Player, целевой диапазон 90-95%):
-#   Слоты      ≈ 94.5%  (2-в-ряд для мелких символов = возврат ставки)
-#   Колесо     ≈ 95.8%  (5×0x, 2×0.5x, 3×1x, 1×2.5x, 1×5x)
-#   Лестница   ≈ 92.4%  (12 ступеней, fail-chance 15% на каждой, включая первую)
-#   Дуэль      = 95.0%  (P(win) = 47.5%)
-#   Мины       ≈ 93.0%  (house edge 7%)
-#   Классика   ≈ 97.0%  (комиссия 3% от банка)
+# RTP по мини-играм:
+#   Слоты      ≈ 94.5%
+#   Колесо     ≈ 95.8%
+#   Лестница   ≈ 93.0%  (прогрессивный fail, макс x42)
+#   Дуэль      = 95.0%
+#   Мины       ≈ 93.0%
+#   Классика   ≈ 97.0%
+#   Crash      ≈ 95.0%
+#   Upgrade    = 95.0%
 # ============================================================
 
 wait-time-seconds: 300
@@ -16,8 +18,6 @@ min-bets: 2
 animation-interval-ticks: 5
 animation-duration-ticks: 60
 commission-percent: 3
-
-# Уведомления о крупных выигрышах (от какой суммы сообщать в чат)
 broadcast-threshold: 50000
 
 sounds:
@@ -41,9 +41,11 @@ sounds:
   wheel-lose: ENTITY_VILLAGER_NO
   stairs-step: BLOCK_NOTE_BLOCK_HAT
   stairs-fall: ENTITY_GENERIC_EXPLODE
+  crash-start: BLOCK_NOTE_BLOCK_PLING
+  crash-win: ENTITY_PLAYER_LEVELUP
+  crash-fail: ENTITY_GENERIC_EXPLODE
 
 history-limit: 30
-
 min-bet: 0
 max-bet: 0
 duel-commission-percent: 5
@@ -51,24 +53,45 @@ duel-commission-percent: 5
 mines:
   min-bet: 0
   max-bet: 0
-  commission-percent: 0   # house edge заложен в множитель (0.93)
+  commission-percent: 0
 
 slots:
   min-bet: 0
   max-bet: 0
-  commission-percent: 0   # RTP уже сбалансирован весами символов
+  commission-percent: 0
 
 wheel:
   min-bet: 0
   max-bet: 0
-  commission-percent: 0   # RTP заложен в секторах
+  commission-percent: 0
   animation-ticks: 60
 
 stairs:
   min-bet: 0
   max-bet: 0
-  commission-percent: 0   # RTP заложен в множителях
-  fail-chance: 0.15       # 15% на каждой ступени (включая первую)
+  commission-percent: 0
+
+crash:
+  min-bet: 0
+  max-bet: 0
+
+# ============================================================
+# Upgrader v3.0
+# ============================================================
+#
+# Кастомные рецепты (переопределяют встроенные).
+# Формат: ВХОД_МАТЕРИАЛ: "ВЫХОД_МАТЕРИАЛ:ШАНС"
+# Шанс от 0.05 до 0.60.
+# valueIn берётся из стандартного реестра (или 100).
+# valueOut = valueIn * 0.95 / chance.
+#
+upgrade:
+  custom-recipes:
+    # Пример 1: золотое яблоко → зачарованное (15% шанс)
+    GOLDEN_APPLE: "ENCHANTED_GOLDEN_APPLE:0.15"
+    # Пример 2: палка → огненный стержень (30%)
+    STICK: "BLAZE_ROD:0.30"
+    # Раскомментируй и добавь свои:
 
 poker:
   blind-increase-minutes: 10
