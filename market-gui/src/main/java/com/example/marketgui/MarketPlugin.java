@@ -7,11 +7,11 @@ public final class MarketPlugin extends JavaPlugin {
     private ShopManager shopManager;
     private ShopGUI shopGUI;
     private EconomyManager economyManager;
+    private PanelExporter panelExporter;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        // Убрано saveResource("listings.yml", false) – теперь это делает ShopManager
 
         this.economyManager = new EconomyManager(this);
         this.shopManager = new ShopManager(this);
@@ -23,23 +23,22 @@ public final class MarketPlugin extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(shopGUI, this);
 
+        this.panelExporter = new PanelExporter(this);
+
         getLogger().info("MarketGUI включён. Категорий: " + shopManager.getCategories().size() +
                 ". Валюта: " + (economyManager.isEnabled() ? "включена" : "отключена"));
     }
 
     @Override
     public void onDisable() {
+        if (panelExporter != null) panelExporter.shutdown();
         if (shopManager != null) {
             shopManager.save();
         }
         getLogger().info("MarketGUI выключен.");
     }
 
-    public ShopManager getShopManager() {
-        return shopManager;
-    }
-
-    public EconomyManager getEconomyManager() {
-        return economyManager;
-    }
+    public ShopManager getShopManager() { return shopManager; }
+    public EconomyManager getEconomyManager() { return economyManager; }
+    public PanelExporter getPanelExporter() { return panelExporter; }
 }

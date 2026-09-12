@@ -1,12 +1,7 @@
 package com.example.taxv3;
 
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
-/**
- * TaxCollectorV3 — налоговая система, работающая через SovereigntyBridge.
- * Не имеет жёсткой зависимости от Sovereignty.
- */
 public final class TaxPlugin extends JavaPlugin {
 
     private EconomyManager economyManager;
@@ -14,6 +9,7 @@ public final class TaxPlugin extends JavaPlugin {
     private TaxManager taxManager;
     private TaxGUI taxGUI;
     private SovereigntyBridge sovereigntyBridge;
+    private PanelExporter panelExporter;
 
     @Override
     public void onEnable() {
@@ -36,6 +32,8 @@ public final class TaxPlugin extends JavaPlugin {
         getCommand("tax").setExecutor(new TaxCommand(this, taxManager, dataManager, taxGUI));
         getServer().getPluginManager().registerEvents(taxGUI, this);
 
+        this.panelExporter = new PanelExporter(this);
+
         taxManager.start();
         getLogger().info("TaxCollectorV3 включён.");
     }
@@ -43,6 +41,7 @@ public final class TaxPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         if (taxManager != null) taxManager.stop();
+        if (panelExporter != null) panelExporter.shutdown();
         if (dataManager != null) dataManager.save();
         getLogger().info("TaxCollectorV3 выключен.");
     }
@@ -51,4 +50,5 @@ public final class TaxPlugin extends JavaPlugin {
     public DataManager getDataManager() { return dataManager; }
     public EconomyManager getEconomyManager() { return economyManager; }
     public SovereigntyBridge getSovereigntyBridge() { return sovereigntyBridge; }
+    public PanelExporter getPanelExporter() { return panelExporter; }
 }

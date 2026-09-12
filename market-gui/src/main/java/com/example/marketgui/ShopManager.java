@@ -87,38 +87,10 @@ public class ShopManager {
         BUILT_IN_ITEM_NAMES.put("COOKED_BEEF", "Жареная говядина");
         BUILT_IN_ITEM_NAMES.put("COOKED_PORKCHOP", "Жареная свинина");
         BUILT_IN_ITEM_NAMES.put("COOKED_CHICKEN", "Жареная курица");
-        BUILT_IN_ITEM_NAMES.put("COOKED_COD", "Жареная треска");
-        BUILT_IN_ITEM_NAMES.put("COOKED_SALMON", "Жареный лосось");
         BUILT_IN_ITEM_NAMES.put("CARROT", "Морковь");
         BUILT_IN_ITEM_NAMES.put("POTATO", "Картофель");
         BUILT_IN_ITEM_NAMES.put("BAKED_POTATO", "Печёный картофель");
         BUILT_IN_ITEM_NAMES.put("APPLE", "Яблоко");
-        BUILT_IN_ITEM_NAMES.put("MELON_SLICE", "Ломтик арбуза");
-        BUILT_IN_ITEM_NAMES.put("SWEET_BERRIES", "Сладкие ягоды");
-        BUILT_IN_ITEM_NAMES.put("GLOW_BERRIES", "Светящиеся ягоды");
-        BUILT_IN_ITEM_NAMES.put("HONEY_BOTTLE", "Бутылочка мёда");
-        BUILT_IN_ITEM_NAMES.put("STONE", "Камень");
-        BUILT_IN_ITEM_NAMES.put("COBBLESTONE", "Булыжник");
-        BUILT_IN_ITEM_NAMES.put("DIRT", "Земля");
-        BUILT_IN_ITEM_NAMES.put("GRASS_BLOCK", "Травяной блок");
-        BUILT_IN_ITEM_NAMES.put("SAND", "Песок");
-        BUILT_IN_ITEM_NAMES.put("GRAVEL", "Гравий");
-        BUILT_IN_ITEM_NAMES.put("OAK_LOG", "Дубовое бревно");
-        BUILT_IN_ITEM_NAMES.put("SPRUCE_LOG", "Еловое бревно");
-        BUILT_IN_ITEM_NAMES.put("BIRCH_LOG", "Берёзовое бревно");
-        BUILT_IN_ITEM_NAMES.put("OAK_PLANKS", "Дубовые доски");
-        BUILT_IN_ITEM_NAMES.put("SPRUCE_PLANKS", "Еловые доски");
-        BUILT_IN_ITEM_NAMES.put("BIRCH_PLANKS", "Берёзовые доски");
-        BUILT_IN_ITEM_NAMES.put("GLASS", "Стекло");
-        BUILT_IN_ITEM_NAMES.put("BRICKS", "Кирпичи");
-        BUILT_IN_ITEM_NAMES.put("STONE_BRICKS", "Каменные кирпичи");
-        BUILT_IN_ITEM_NAMES.put("OBSIDIAN", "Обсидиан");
-        BUILT_IN_ITEM_NAMES.put("TNT", "Динамит");
-        BUILT_IN_ITEM_NAMES.put("ANVIL", "Наковальня");
-        BUILT_IN_ITEM_NAMES.put("ENCHANTING_TABLE", "Стол зачарования");
-        BUILT_IN_ITEM_NAMES.put("CRAFTING_TABLE", "Верстак");
-        BUILT_IN_ITEM_NAMES.put("FURNACE", "Печь");
-        BUILT_IN_ITEM_NAMES.put("CHEST", "Сундук");
     }
 
     public ShopManager(MarketPlugin plugin) {
@@ -195,7 +167,6 @@ public class ShopManager {
         if (!dataFile.exists()) {
             try {
                 dataFile.createNewFile();
-                plugin.getLogger().info("Создан пустой listings.yml");
             } catch (IOException e) {
                 plugin.getLogger().severe("Не удалось создать listings.yml: " + e.getMessage());
             }
@@ -218,7 +189,6 @@ public class ShopManager {
                     double moneyPrice = section.getDouble(key + ".money-price", 0.0);
                     long createdAt = section.getLong(key + ".created-at", System.currentTimeMillis());
 
-                    // Новое поле: targetPlayer
                     String targetPlayerStr = section.getString(key + ".target-player");
                     UUID targetPlayer = targetPlayerStr != null ? UUID.fromString(targetPlayerStr) : null;
 
@@ -238,32 +208,6 @@ public class ShopManager {
                 }
             }
         }
-
-        ConfigurationSection pendingSection = data.getConfigurationSection("pending-payments");
-        if (pendingSection != null) {
-            for (String uuidStr : pendingSection.getKeys(false)) {
-                try {
-                    UUID uuid = UUID.fromString(uuidStr);
-                    Map<Material, Integer> payments = new HashMap<>();
-                    ConfigurationSection matSection = pendingSection.getConfigurationSection(uuidStr);
-                    if (matSection != null) {
-                        for (String matName : matSection.getKeys(false)) {
-                            Material mat = Material.matchMaterial(matName);
-                            if (mat != null) {
-                                payments.put(mat, matSection.getInt(matName));
-                            }
-                        }
-                    }
-                    if (!payments.isEmpty()) {
-                        pendingPayments.put(uuid, payments);
-                    }
-                } catch (Exception e) {
-                    plugin.getLogger().warning("Не удалось загрузить отложенные платежи: " + e.getMessage());
-                }
-            }
-        }
-
-        plugin.getLogger().info("Загружено " + listings.size() + " объявлений.");
     }
 
     public void save() {
@@ -291,8 +235,7 @@ public class ShopManager {
         data.set("pending-payments", null);
         for (Map.Entry<UUID, Map<Material, Integer>> entry : pendingPayments.entrySet()) {
             String uuidKey = entry.getKey().toString();
-            Map<Material, Integer> payments = entry.getValue();
-            for (Map.Entry<Material, Integer> pay : payments.entrySet()) {
+            for (Map.Entry<Material, Integer> pay : entry.getValue().entrySet()) {
                 data.set("pending-payments." + uuidKey + "." + pay.getKey().name(), pay.getValue());
             }
         }
@@ -310,17 +253,17 @@ public class ShopManager {
                 priceMaterial, priceAmount, moneyPrice, categoryName, System.currentTimeMillis(), targetPlayer);
         listings.put(id, listing);
         save();
+        if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markDirty();
         return getCategory(categoryName);
     }
 
     public void removeListing(UUID id) {
         listings.remove(id);
         save();
+        if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markDirty();
     }
 
-    public Listing getListing(UUID id) {
-        return listings.get(id);
-    }
+    public Listing getListing(UUID id) { return listings.get(id); }
 
     public List<Listing> getListingsByCategory(String categoryName) {
         return listings.values().stream()
@@ -334,17 +277,11 @@ public class ShopManager {
                 .collect(Collectors.toList());
     }
 
-    public Collection<Listing> getAllListings() {
-        return listings.values();
-    }
+    public Collection<Listing> getAllListings() { return listings.values(); }
 
-    public Map<String, Category> getCategories() {
-        return categories;
-    }
+    public Map<String, Category> getCategories() { return categories; }
 
-    public Category getCategory(String name) {
-        return categories.get(name);
-    }
+    public Category getCategory(String name) { return categories.get(name); }
 
     public String getCategoryForMaterial(Material material) {
         for (Category cat : categories.values()) {
@@ -369,7 +306,6 @@ public class ShopManager {
         return payments != null ? payments : Collections.emptyMap();
     }
 
-    // ===== Внутренние классы =====
     public static class Category {
         private final String name;
         private final Material icon;
@@ -396,7 +332,7 @@ public class ShopManager {
         private final double moneyPrice;
         private final String categoryName;
         private final long createdAt;
-        private final UUID targetPlayer; // null = публичная продажа
+        private final UUID targetPlayer;
 
         public Listing(UUID id, UUID sellerUuid, String sellerName, ItemStack itemStack,
                        Material priceMaterial, int priceAmount, double moneyPrice,

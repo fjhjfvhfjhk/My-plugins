@@ -121,7 +121,6 @@ public class TaxManager {
                     sovereigntyBridge.depositToBank(country, subsidy);
                 }
 
-                // Правильная замена баланса
                 double newBalance = sovereigntyBridge.getBankBalance(country);
                 player.sendMessage(taxCollectedMsg
                         .replace("%amount%", economyManager.format(tax))
@@ -129,6 +128,8 @@ public class TaxManager {
             }
         }
 
+        // Экспорт долгов на панель
+        if (plugin.getPanelExporter() != null) plugin.getPanelExporter().markDirty();
         plugin.getLogger().info("Налог собран в мире " + world.getName());
     }
 
